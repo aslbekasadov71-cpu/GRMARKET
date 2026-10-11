@@ -132,7 +132,23 @@ async function copyCard(){
   try{ await navigator.clipboard.writeText(t); toast("Karta raqami nusxalandi"); return true; }
   catch(_){ try{ const i = document.createElement("input"); i.value = t; document.body.appendChild(i); i.select(); document.execCommand("copy"); i.remove(); toast("Karta raqami nusxalandi"); return true; }catch(e){ toast("Raqamni qo'lda nusxalang", "danger-triangle-bold"); return false; } }
 }
-async function openPayApp(u){ await copyCard(); setTimeout(() => window.open(u, "_blank"), 400); }
+const PAYAPPS = {
+  click:{pkg:"air.com.ssdsoftwaresolutions.clickuz", ios:"click://", web:"https://my.click.uz"},
+  payme:{pkg:"uz.dida.payme", ios:"payme://", web:"https://payme.uz"},
+  paynet:{pkg:"uz.paynet.app", ios:"paynet://", web:"https://paynet.uz"}
+};
+async function openPayApp(k){
+  const a = PAYAPPS[k]; await copyCard();
+  const ua = navigator.userAgent, web = a.web;
+  setTimeout(() => {
+    if(/Android/i.test(ua)){
+      location.href = `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${a.pkg};S.browser_fallback_url=${encodeURIComponent(web)};end`;
+    }else if(/iPhone|iPad|iPod/i.test(ua)){
+      const t = Date.now(); location.href = a.ios;
+      setTimeout(() => { if(!document.hidden && Date.now() - t < 2500) location.href = web; }, 1200);
+    }else window.open(web, "_blank");
+  }, 350);
+}
 function payModal(){
   if($("#modal") || !SUPPORT.card) return;
   const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
@@ -148,9 +164,9 @@ function payModal(){
   </div>
   <p class="mute" style="margin:12px 0 6px;font-weight:600">Raqam nusxalanadi, ilovada «Kartaga o'tkazma» ga qo'ying:</p>
   <div style="display:flex;gap:8px">
-    <button class="btn full" onclick="openPayApp('https://my.click.uz')">Click</button>
-    <button class="btn full" onclick="openPayApp('https://payme.uz')">Payme</button>
-    <button class="btn full" onclick="openPayApp('https://paynet.uz')">Paynet</button>
+    <button class="btn full" onclick="openPayApp('click')">Click</button>
+    <button class="btn full" onclick="openPayApp('payme')">Payme</button>
+    <button class="btn full" onclick="openPayApp('paynet')">Paynet</button>
   </div>
   <p class="mute" style="margin:12px 0">To'lov izohiga <b>ID ${esc(id)}</b> yozing. Pul o'tgach pastdagi tugmani bosing, administrator tasdiqlaydi.</p>
   <button class="btn b full" onclick="paid();closeForm()">To'lov qildim</button>
