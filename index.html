@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Do'kon">
+<meta name="theme-color" content="#f2f4f7">
+<title>Do'kon</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.1.0/dist/iconify-icon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--bg:#f2f4f7;--card:#fff;--ink:#101828;--mute:#8a94a6;--line:#e6e9ef;--b:#2b6cf6;--bl:#e8f0ff;--red:#f04438;--redl:#fee4e2;--ok:#12b76a}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%;background:var(--bg)}
+body{font:500 16px/1.4 Manrope,-apple-system,system-ui,sans-serif;color:var(--ink);padding-top:env(safe-area-inset-top)}
+#app{max-width:560px;margin:0 auto;padding:10px 14px calc(250px + env(safe-area-inset-bottom))}
+iconify-icon{display:inline-block;vertical-align:middle;flex:none}
+h1{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+h2{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--mute);display:flex;justify-content:space-between;align-items:center}
+small{display:block;font-size:13px;color:var(--mute);font-weight:500}
+.mute{color:var(--mute)}
+.top{display:flex;justify-content:space-between;align-items:flex-end;margin:6px 0 16px}
+.pill{background:var(--bl);color:var(--b);font-weight:700;font-size:13px;padding:7px 12px;border-radius:99px;display:flex;align-items:center;gap:6px}
+input,select{font:inherit;color:inherit;width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:10px;outline:0}
+input:focus,select:focus{border-color:var(--b)}
+.field{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 14px;margin-bottom:10px}
+.field:focus-within{border-color:var(--b)}
+.field input{border:0;background:none;padding:14px 0;margin:0}
+.field iconify-icon{color:var(--b)}
+.btn{font:inherit;font-weight:700;border:0;border-radius:14px;padding:14px 16px;background:var(--card);color:var(--ink);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.btn:active{transform:scale(.97)}
+.btn.b{background:var(--b);color:#fff;border-color:var(--b)}
+.btn.b:disabled{opacity:.45}
+.btn.red{background:var(--redl);color:var(--red);border-color:var(--redl)}
+.btn.full{width:100%}.btn.sm{padding:8px 12px;font-size:14px;border-radius:10px}
+.link{background:none;border:0;color:var(--b);font:inherit;font-weight:700;padding:10px;cursor:pointer;width:100%;text-align:center}
+.row{display:flex;gap:10px;align-items:center}
+.row>*{flex:1}.row>.auto{flex:none}
+.card{background:var(--card);border-radius:18px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.card>.grow{flex:1;min-width:0}
+.card b{display:block;overflow:hidden;text-overflow:ellipsis}
+.ico{width:44px;height:44px;border-radius:12px;background:var(--bl);color:var(--b);display:grid;place-items:center;flex:none}
+.blue{color:var(--b)}
+.right{text-align:right;flex:none}
+.tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--bl);color:var(--b);display:inline-block}
+.tag.low{background:var(--redl);color:var(--red)}
+.chips{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
+.chip{font:inherit;font-weight:700;font-size:14px;white-space:nowrap;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:99px}
+.chip.on{background:var(--bl);color:var(--b);border-color:var(--bl)}
+.qty{display:flex;align-items:center;gap:2px;flex:none;background:var(--bg);border-radius:12px;padding:4px}
+.qty button{background:none;border:0;color:var(--b);padding:4px;cursor:pointer;display:grid}
+.qty b{min-width:36px;text-align:center;font-size:17px}
+.stat{background:var(--b);color:#fff;border-radius:22px;padding:18px;margin-bottom:10px}
+.stat small{color:rgba(255,255,255,.75)}
+.stat .big{font-size:30px;font-weight:800;margin-top:4px}
+.bars{display:flex;gap:8px;height:130px;align-items:flex-end;background:var(--card);border-radius:18px;padding:14px;margin-bottom:10px}
+.bars div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.bars i{width:100%;background:var(--b);border-radius:8px 8px 4px 4px;min-height:3px}
+.bars div:last-child i{background:#10b981}
+.scan{display:none;position:relative;border-radius:20px;overflow:hidden;margin:0 0 12px;background:#000}
+.scan.on{display:block}
+.scan i{position:absolute;width:32px;height:32px;border:4px solid var(--b);z-index:2;pointer-events:none}
+.tl{top:12px;left:12px;border-right:0!important;border-bottom:0!important;border-radius:12px 0 0 0}
+.tr{top:12px;right:12px;border-left:0!important;border-bottom:0!important;border-radius:0 12px 0 0}
+.bl{bottom:12px;left:12px;border-right:0!important;border-top:0!important;border-radius:0 0 0 12px}
+.br{bottom:12px;right:12px;border-left:0!important;border-top:0!important;border-radius:0 0 12px 0}
+.empty{text-align:center;color:var(--mute);padding:30px 10px}
+.empty iconify-icon{color:var(--b);opacity:.7;margin-bottom:8px}
+.sw{width:46px;height:28px;border-radius:99px;background:#d0d5dd;position:relative;flex:none;transition:.2s}
+.sw:after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s}
+.sw.on{background:var(--b)}.sw.on:after{left:21px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:5}
+nav button{flex:1;background:none;border:0;color:var(--mute);font:inherit;font-size:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
+nav button.on{color:var(--b)}
+.slab{position:fixed;left:0;right:0;bottom:calc(66px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;background:var(--card);border-radius:22px 22px 0 0;padding:14px;z-index:4;box-shadow:0 -8px 24px rgba(16,24,40,.08)}
+.srow{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:18px}
+.srow b{font-size:22px;font-weight:800}
+.modal{position:fixed;inset:0;background:rgba(16,24,40,.5);display:flex;align-items:flex-end;z-index:9}
+.modal>div{background:var(--bg);width:100%;max-width:560px;margin:0 auto;border-radius:26px 26px 0 0;padding:20px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+#toast{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-weight:700;padding:10px 16px;border-radius:99px;z-index:20;display:none;align-items:center;gap:6px;max-width:92%}
+.login{padding-top:7vh}
+.logo{width:68px;height:68px;border-radius:20px;background:var(--b);color:#fff;display:grid;place-items:center;margin-bottom:18px}
+.login h1{font-size:38px;margin-bottom:6px}.login p{margin-bottom:22px}
+.err{color:var(--red);margin:4px 0 10px;min-height:20px;font-weight:600}.err.ok{color:var(--ok)}
+.banner{display:flex;gap:10px;align-items:center;border-radius:14px;padding:10px 14px;margin:-6px 0 14px;font-weight:700;font-size:14px;background:#fff3d6;color:#8a5a00}
+.banner.bad{background:var(--redl);color:var(--red)}
+.banner small{color:inherit;font-weight:600;opacity:.85}
+.codebox{font:800 30px/1 Manrope,sans-serif;letter-spacing:.14em;text-align:center;background:var(--card);border-radius:18px;padding:20px;margin-bottom:8px;user-select:all}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+#rcpt{display:none}
+.rank{width:28px;height:28px;border-radius:9px;background:var(--bl);color:var(--b);display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+.pbar{height:6px;border-radius:99px;background:var(--bl);margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--b);border-radius:99px}
+.line{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+@media(min-width:900px){#app{max-width:860px}.slab{max-width:860px}}
+@page{margin:0}
+@media print{html,body{background:#fff!important}body>*:not(#rcpt){display:none!important}
+#rcpt{display:block;font:12px/1.35 "Courier New",monospace;color:#000;padding:2mm}
+#rcpt .r{display:flex;justify-content:space-between;gap:6px}#rcpt hr{border:0;border-top:1px dashed #000;margin:4px 0}#rcpt .c{text-align:center}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<div id="rcpt"></div>
+<script>
+// ===== SOZLAMA (faqat shu 3 joyni o'zgartiring) =====
+const SUPABASE_URL = "https://qdokkscmadhzndpbqmwt.supabase.co";
+const SUPABASE_KEY = "sb_publishable_PGnP21p8l63SVIrCTFQ6ug_o6M7ND6S";
+const SUPPORT = {phone:"+998 20 001 25 60", price:"49 000 so'm / 30 kun"}; // obuna to'lovi va yordam
+// ====================================================
+const VER = "1.0.0";
+let RECOVERY = /type=recovery/.test(location.hash); // parolni tiklash havolasidan kelgan
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ic = (n, s = 22) => `<iconify-icon icon="solar:${n}" width="${s}" height="${s}"></iconify-icon>`;
+const money = n => Math.round(n).toLocaleString("ru-RU") + " so'm";
+const fmtT = d => new Date(d).toLocaleString("ru-RU", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"});
+const fmtD = d => new Date(d + "T00:00:00").toLocaleDateString("ru-RU");
+const today = () => new Date().toLocaleDateString("sv-SE");
+const DEF = {shop:"Do'kon", beep:true, vib:true, low:5, auto:false, print:false, pw:80, foot:"Xaridingiz uchun rahmat!"};
+let S = {...DEF};
+try{ S = {...DEF, ...JSON.parse(localStorage.getItem("dk") || "{}")}; }catch(e){}
+const saveS = () => { try{ localStorage.setItem("dk", JSON.stringify(S)); }catch(e){} };
+let me = null, SH = null, tab = "sell", cart = [], scanner = null, last = {c:"", t:0}, P = new Map(), pf = "all", shown = [], ac, ob = "new";
+const CORNERS = '<i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>';
+const blank = () => ({barcode:"", name:"", price:0, stock:0, unit:"dona", isNew:true});
+const ready = () => !!me && (me.role === "owner" || me.role === "admin");
+const shopName = () => (SH && SH.name) || S.shop;
+const subOK = () => !SH || SH.paid_until >= today();
+const daysLeft = () => SH ? Math.round((new Date(SH.paid_until + "T00:00:00") - new Date(today() + "T00:00:00")) / 864e5) : 99;
+const errMsg = e => /row-level security/i.test(e?.message || "") ? "Obuna muddati tugagan yoki ruxsat yo'q" : (e?.message || "Xato");
+const setErr = (m, ok) => { const e = $(".err"); if(e){ e.textContent = m; e.className = "err" + (ok ? " ok" : ""); } };
+
+function toast(m, icon = "check-circle-bold"){
+  const t = $("#toast"); t.innerHTML = ic(icon, 20) + esc(m); t.style.display = "flex";
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2600);
+}
+function feedback(){
+  if(S.vib && navigator.vibrate) navigator.vibrate(50);
+  if(!S.beep) return;
+  try{
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination); o.frequency.value = 1100; g.gain.value = .15;
+    o.start(); o.stop(ac.currentTime + .08);
+  }catch(e){}
+}
+async function loadP(){
+  const m = new Map();
+  try{
+    for(let f = 0; ; f += 1000){
+      const {data, error} = await T(sb.from("products").select("*").order("barcode").range(f, f + 999), 12000);
+      if(error) throw error;
+      (data || []).forEach(p => m.set(p.barcode, p));
+      if(!data || data.length < 1000) break;
+    }
+    P = m; cacheP();
+  }catch(e){
+    if(!P.size){ try{ JSON.parse(localStorage.getItem("dp") || "[]").forEach(p => m.set(p.barcode, p)); P = m; }catch(x){} }
+  }
+}
+
+/* ---------- BOSHLASH ---------- */
+async function init(){
+  wl();
+  if(RECOVERY) return recoveryView();
+  let session = null;
+  try{ ({data:{session}} = await T(sb.auth.getSession(), 6000)); }catch(e){}
+  let cached = null; try{ cached = JSON.parse(localStorage.getItem("dme")); }catch(e){}
+  if(!session && !(cached && navigator.onLine === false)) return loginView();
+  let prof = null, info = null, offline = false;
+  if(session){
+    try{
+      const r = await T(sb.rpc("ensure_profile"), 8000);
+      if(r.error){
+        if(r.error.code) return loginView("Qayta kiring: " + r.error.message); // server javob berdi: sessiya yaroqsiz
+        throw r.error;
+      }
+      prof = r.data && r.data[0];
+      if(prof && prof.shop_id && prof.role !== "pending" && prof.role !== "none"){
+        const s = await T(sb.rpc("shop_info"), 8000);
+        info = s.data && s.data[0];
+      }
+    }catch(e){ offline = true; }
+  }
+  if(!prof || offline){
+    if(cached && cached.p){ prof = cached.p; info = cached.s; }
+    else return loginView("Internetga ulanib bo'lmadi");
+  }
+  me = prof; SH = info || null;
+  if(!me.shop_id || me.role === "none") return onboardView();
+  if(me.role === "pending") return pendingView();
+  cacheMe();
+  await loadP(); show("sell"); flush();
+}
+const cacheMe = () => { try{ localStorage.setItem("dme", JSON.stringify({p:me, s:SH})); }catch(e){} };
+async function refreshShop(){
+  if(!ready()) return;
+  try{
+    const {data, error} = await T(sb.rpc("shop_info"), 6000);
+    if(!error && data && data[0]){ SH = data[0]; cacheMe(); }
+  }catch(e){}
+}
+
+/* ---------- BARQARORLIK: oflayn navbat, taymaut, chop etish ---------- */
+const FINE = matchMedia("(pointer:fine)").matches;
+const T = (p, ms = 8000) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error("timeout")), ms))]);
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : r & 3 | 8).toString(16); });
+const code6 = id => String(id || "").slice(0, 6).toUpperCase();
+let Q = [], Qf = [];
+try{ Q = JSON.parse(localStorage.getItem("dq") || "[]"); }catch(e){}
+try{ Qf = JSON.parse(localStorage.getItem("dqf") || "[]"); }catch(e){}
+const saveQ = () => { try{ localStorage.setItem("dq", JSON.stringify(Q)); }catch(e){} };
+const saveQf = () => { try{ localStorage.setItem("dqf", JSON.stringify(Qf)); }catch(e){} };
+const cacheP = () => { clearTimeout(cacheP.t); cacheP.t = setTimeout(() => { try{ localStorage.setItem("dp", JSON.stringify([...P.values()])); }catch(e){} }, 800); };
+function updBadge(){ const e = $("#syncb"); if(e){ e.style.display = Q.length ? "flex" : "none"; e.innerHTML = ic("cloud-upload-bold", 16) + Q.length; } }
+let flushing = false;
+async function flush(){
+  if(flushing || !Q.length || !ready()) return;
+  flushing = true; let sent = false;
+  try{
+    while(Q.length){
+      const s = Q[0];
+      const {error} = await T(sb.rpc("make_sale", {p_client:s.id, p_items:s.items, p_at:s.at}), 10000);
+      if(error){
+        const code = error.code || "";
+        const expired = /Obuna/i.test(error.message || "");
+        if(!expired && (code === "P0001" || /^2[23]/.test(code))){
+          // server chekni rad etdi (qayta urinish foydasiz): alohida saqlaymiz, navbat to'xtab qolmasin
+          Qf.push({...s, err:error.message}); saveQf(); Q.shift(); saveQ(); updBadge();
+          toast("Chek qabul qilinmadi: " + error.message, "danger-triangle-bold");
+          continue;
+        }
+        if(expired) await refreshShop();
+        if(!flush.w){ flush.w = 1; setTimeout(() => flush.w = 0, 60000); toast(expired ? "Obuna tugagan: cheklar saqlanyapti" : "Sinxronlash kutilmoqda", "danger-triangle-bold"); }
+        break;
+      }
+      Q.shift(); saveQ(); sent = true; updBadge();
+    }
+  }catch(e){}
+  flushing = false; updBadge();
+  if(sent && !Q.length) loadP();
+}
+function retryFailed(){
+  if(!Qf.length) return;
+  Q.push(...Qf.map(({err, ...s}) => s)); Qf = []; saveQ(); saveQf(); updBadge(); flush();
+  toast("Qayta yuborilmoqda"); setView();
+}
+async function wl(){ try{ if(navigator.wakeLock) await navigator.wakeLock.request("screen"); }catch(e){} }
+function printReceipt(r){
+  const el = $("#rcpt"), n = x => money(x).replace(" so'm", "");
+  el.style.width = S.pw == 58 ? "48mm" : "72mm";
+  el.innerHTML = `<div class="c"><b style="font-size:15px">${esc(shopName())}</b><br>${fmtT(r.at)}<br>Chek: ${esc(r.code)}${r.status === "canceled" ? "<br><b>BEKOR QILINGAN</b>" : ""}</div><hr>`
+    + r.items.map(i => `<div>${esc(i.name)}</div><div class="r"><span>${i.qty} x ${n(i.price)}</span><span>${n(i.qty * i.price)}</span></div>`).join("")
+    + `<hr><div class="r"><b>JAMI</b><b>${money(r.total)}</b></div><hr><div class="c">${esc(S.foot)}</div>`;
+  setTimeout(() => window.print(), 80);
+}
+
+/* ---------- KIRISH / RO'YXATDAN O'TISH ---------- */
+const MAILDOM = "@dokon.uz";
+function normPhone(v){
+  let d = String(v || "").replace(/\D/g, "");
+  if(d.length === 9) d = "998" + d;
+  return /^998\d{9}$/.test(d) ? d : "";
+}
+function phoneOf(e){
+  const m = String(e || "").match(/^(998)(\d{2})(\d{3})(\d{2})(\d{2})@/);
+  return m ? `+${m[1]} ${m[2]} ${m[3]} ${m[4]} ${m[5]}` : String(e || "");
+}
+function loginView(msg = ""){
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shop-2-bold-duotone", 38)}</div>
+  <h1>Do'kon</h1><p class="mute">Savdo, ombor va hisobot bitta ilovada</p>
+  <label class="field">${ic("phone-bold-duotone")}<input id="em" type="tel" inputmode="tel" placeholder="Telefon raqam: 90 123 45 67" autocomplete="tel"></label>
+  <label class="field">${ic("lock-password-bold-duotone")}<input id="pw" type="password" placeholder="Parol (kamida 6 belgi)" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()"></label>
+  <div class="err">${esc(msg)}</div>
+  <div class="row"><button class="btn b" onclick="login()">Kirish</button><button class="btn" onclick="TG.on ? tgView('signup') : signup()">Ro'yxatdan o'tish</button></div>
+  <button class="link" onclick="TG.on ? tgView('reset') : forgot()">Parolni unutdim</button>
+  <small style="text-align:center;margin-top:10px">v${VER}</small></div>`;
+}
+async function login(){
+  const ph = normPhone($("#em").value), password = $("#pw").value;
+  if(!ph) return setErr("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
+  if(!password) return setErr("Parolni kiriting");
+  const {error} = await sb.auth.signInWithPassword({email: ph + MAILDOM, password});
+  if(error) return setErr("Telefon yoki parol noto'g'ri");
+  init();
+}
+async function signup(){
+  const ph = normPhone($("#em").value), password = $("#pw").value;
+  if(!ph) return setErr("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
+  if(password.length < 6) return setErr("Parol kamida 6 belgi bo'lsin");
+  const {data, error} = await sb.auth.signUp({email: ph + MAILDOM, password});
+  if(error) return setErr(/registered|exists/i.test(error.message) ? "Bu raqam ro'yxatdan o'tgan: «Kirish»ni bosing" : error.message);
+  if(data.session) init(); else setErr("Ro'yxatdan o'tdi. «Kirish»ni bosing.", true);
+}
+function forgot(){
+  setErr("Parolni tiklash uchun qo'ng'iroq qiling: " + SUPPORT.phone, true);
+}
+/* ---------- TELEGRAM ORQALI TELEFON TASDIQLASH (6 xonali kod) ---------- */
+const TG = {on: true, fn: SUPABASE_URL + "/functions/v1/tg", bot: "https://t.me/CODEBOTTOBOT"};
+let tgs = {};
+async function tgApi(body){
+  const r = await fetch(TG.fn, {method:"POST", headers:{"Content-Type":"application/json", apikey:SUPABASE_KEY}, body:JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || "Server xatosi");
+  return j;
+}
+function tgShell(inner){
+  $("#app").innerHTML = `<div class="login" id="tgw"><div class="logo">${ic("plain-bold-duotone", 38)}</div>${inner}</div>`;
+}
+function tgView(mode, msg = ""){
+  tgs = {mode, step:"phone", phone: tgs.phone || ""};
+  tgRender(msg);
+}
+function tgRender(msg = "", ok = false){
+  const title = tgs.mode === "reset" ? "Parolni tiklash" : "Ro'yxatdan o'tish";
+  const err = `<div class="err${ok ? " ok" : ""}">${esc(msg)}</div>`;
+  if(tgs.step === "phone"){
+    tgShell(`<h1 style="font-size:26px">${title}</h1>
+    <p class="mute">Telefon raqamingizni yozing. Tasdiqlash kodi Telegram'ga keladi (tekin).</p>
+    <label class="field">${ic("phone-bold-duotone")}<input id="tph" type="tel" inputmode="tel" placeholder="90 123 45 67" autocomplete="tel" value="${esc(tgs.phone)}" onkeydown="if(event.key==='Enter')tgSend()"></label>
+    ${err}<button class="btn b full" id="tgb" onclick="tgSend()">Kod yuborish</button>
+    <button class="link" onclick="tgs={};loginView()">Orqaga</button>`);
+  }else if(tgs.step === "code"){
+    const bot = tgs.needBot ? `<div class="card" style="margin-bottom:12px"><div class="grow"><b>Avval botni ulang</b><small>Telegram'da botni oching, «Start» va «Raqamni yuborish» ni bosing. Kod o'sha zahoti botga keladi. Bu faqat birinchi marta kerak.</small></div></div>
+      <a class="btn b full" href="${esc(TG.bot)}" target="_blank" rel="noopener" style="text-decoration:none;margin-bottom:12px">${ic("plain-bold-duotone",20)} Botni ochish</a>` : "";
+    tgShell(`<h1 style="font-size:26px">${title}</h1>
+    <p class="mute">${esc(phoneOf(tgs.phone + MAILDOM))}${tgs.needBot ? "" : "<br>Kod Telegram'ga yuborildi"}</p>${bot}
+    <label class="field">${ic("shield-check-bold-duotone")}<input id="tc" type="text" inputmode="numeric" maxlength="6" placeholder="6 xonali kod" autocomplete="one-time-code"></label>
+    <label class="field">${ic("lock-password-bold-duotone")}<input id="tp" type="password" placeholder="${tgs.mode === "reset" ? "Yangi parol" : "Parol o'ylab toping"} (kamida 6 belgi)" autocomplete="new-password" onkeydown="if(event.key==='Enter')tgFinish()"></label>
+    ${err}<button class="btn b full" id="tgb" onclick="tgFinish()">Tasdiqlash va kirish</button>
+    <button class="link" onclick="tgResend()">Kodni qayta yuborish</button>
+    <button class="link" onclick="tgView('${tgs.mode}')">Raqamni o'zgartirish</button>`);
+  }
+}
+async function tgSend(){
+  const ph = normPhone($("#tph").value);
+  if(!ph) return tgRender("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
+  tgs.phone = ph; $("#tgb").disabled = true;
+  try{
+    const j = await tgApi({a:"send", phone:ph});
+    tgs.step = "code"; tgs.needBot = j.status === "need_bot"; tgs.phone = ph; tgRender();
+  }catch(e){ tgs.step = "phone"; tgRender(navigator.onLine ? e.message : "Internet yo'q"); }
+}
+async function tgResend(){
+  try{
+    const j = await tgApi({a:"send", phone:tgs.phone});
+    tgs.needBot = j.status === "need_bot"; tgRender(j.status === "sent" ? "Yangi kod yuborildi" : "", j.status === "sent");
+  }catch(e){ tgRender(e.message); }
+}
+async function tgFinish(){
+  const code = $("#tc").value.trim(), pw = $("#tp").value;
+  if(!/^\d{6}$/.test(code)) return tgRender("Kodni to'liq kiriting (6 ta raqam)");
+  if(pw.length < 6) return tgRender("Parol kamida 6 belgi bo'lsin");
+  $("#tgb").disabled = true;
+  try{
+    await tgApi({a:"verify", phone:tgs.phone, code, password:pw});
+    const {error} = await sb.auth.signInWithPassword({email: tgs.phone + MAILDOM, password: pw});
+    if(error) throw new Error("Kirishda xato. Bosh sahifadan «Kirish»ni bosing.");
+    tgs = {}; init();
+  }catch(e){ tgRender(e.message); }
+}
+function recoveryView(msg = ""){
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("lock-password-bold-duotone", 38)}</div><h1 style="font-size:30px">Yangi parol</h1><p class="mute">Yangi parolni kiriting</p>
+  <label class="field">${ic("lock-password-bold-duotone")}<input id="np" type="password" placeholder="Yangi parol (kamida 6 belgi)" autocomplete="new-password"></label>
+  <div class="err">${esc(msg)}</div><button class="btn b full" onclick="saveNewPw()">Saqlash</button></div>`;
+}
+async function saveNewPw(){
+  const p = $("#np").value;
+  if(p.length < 6) return setErr("Parol kamida 6 belgi bo'lsin");
+  const {error} = await sb.auth.updateUser({password:p});
+  if(error) return setErr(error.message);
+  RECOVERY = false; try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  toast("Parol yangilandi"); init();
+}
+function onboardView(msg = ""){
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shop-2-bold-duotone", 38)}</div><h1 style="font-size:30px">Xush kelibsiz</h1><p class="mute">${esc(phoneOf(me?.email))}</p>
+  <div class="chips"><button class="chip ${ob==="new"?"on":""}" onclick="ob='new';onboardView()">Yangi do'kon ochish</button><button class="chip ${ob==="join"?"on":""}" onclick="ob='join';onboardView()">Xodim sifatida qo'shilish</button></div>
+  ${ob === "new" ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input id="sn" placeholder="Do'kon nomi" autocomplete="organization"></label>
+    <label class="field">${ic("phone-bold-duotone",20)}<input id="sp" type="tel" inputmode="tel" placeholder="Telefon (ixtiyoriy)" autocomplete="tel"></label>
+    <div class="err">${esc(msg)}</div><button class="btn b full" onclick="createShop()">Boshlash</button><small style="text-align:center;margin-top:8px">14 kun bepul sinov</small>`
+  : `<label class="field">${ic("key-bold-duotone",20)}<input id="sc" placeholder="Do'kon kodi (egasidan oling)" autocapitalize="characters" style="text-transform:uppercase"></label>
+    <div class="err">${esc(msg)}</div><button class="btn b full" onclick="joinShop()">Qo'shilish</button>`}
+  <button class="link" onclick="logout()">Chiqish</button></div>`;
+}
+async function createShop(){
+  const name = $("#sn").value.trim(), phone = $("#sp").value.trim();
+  if(name.length < 2) return setErr("Do'kon nomini kiriting");
+  const {error} = await sb.rpc("create_shop", {p_name:name, p_phone:phone || null});
+  error ? setErr(error.message) : init();
+}
+async function joinShop(){
+  const code = $("#sc").value.trim();
+  if(!code) return setErr("Kodni kiriting");
+  const {error} = await sb.rpc("join_shop", {p_code:code});
+  error ? setErr(error.message) : init();
+}
+function pendingView(){
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("hourglass-bold-duotone", 38)}</div><h1 style="font-size:30px">Kutilmoqda</h1>
+  <p class="mute">Do'kon egasi sizni tasdiqlashi kerak. Tasdiqlangach, "Tekshirish"ni bosing.</p>
+  <button class="btn b full" onclick="init()" style="margin-bottom:10px">${ic("refresh-circle-bold-duotone")} Tekshirish</button>
+  <button class="btn full" onclick="leaveShop()" style="margin-bottom:10px">Boshqa kod kiritish</button>
+  <button class="link" onclick="logout()">Chiqish</button></div>`;
+}
+async function leaveShop(){ await sb.rpc("leave_shop"); ob = "join"; init(); }
+async function logout(){
+  await stopScan(); $("#slab")?.remove();
+  try{ await T(sb.auth.signOut(), 4000); }catch(e){}
+  try{ localStorage.removeItem("dme"); localStorage.removeItem("dp"); }catch(e){}
+  me = null; SH = null; cart = []; P = new Map(); loginView();
+}
+
+/* ---------- ASOSIY ---------- */
+function show(t){
+  stopScan(); $("#slab")?.remove(); tab = t;
+  const hl = t === "admins" ? "set" : t;
+  const tabs = [["sell","cart-large-2-bold-duotone","Sotuv"], ["rec","bill-list-bold-duotone","Cheklar"], ["products","box-bold-duotone","Mahsulot"]];
+  if(me.role === "owner") tabs.push(["report","chart-2-bold-duotone","Hisobot"]);
+  tabs.push(["set","settings-bold-duotone","Sozlama"]);
+  $("#app").innerHTML = `<div id="view"></div><nav>${tabs.map(([k,i,l]) => `<button class="${k===hl?"on":""}" onclick="show('${k}')">${ic(i,26)}${l}</button>`).join("")}</nav>`;
+  ({sell:sellView, rec:receiptsView, products:productsView, report:reportView, set:setView, admins:adminsView})[t]();
+  updBadge();
+}
+function banner(){
+  if(!SH) return "";
+  const d = daysLeft();
+  if(d < 0) return `<div class="banner bad">${ic("danger-triangle-bold",24)}<div>Obuna muddati tugagan: sotuv to'xtatildi<small>To'lov va uzaytirish (${esc(SUPPORT.price)}): ${esc(SUPPORT.phone)}</small></div></div>`;
+  if(d <= 5) return `<div class="banner">${ic("clock-circle-bold",24)}<div>Obuna ${d === 0 ? "bugun" : d + " kundan keyin"} tugaydi<small>Uzaytirish (${esc(SUPPORT.price)}): ${esc(SUPPORT.phone)}</small></div></div>`;
+  return "";
+}
+function head(title){
+  return `<div class="top"><div><small>${esc(shopName())}</small><h1>${title}</h1></div><div style="display:flex;gap:6px;align-items:center">
+  <div class="pill" id="syncb" style="display:none;background:#fff3d6;color:#8a5a00"></div>
+  <div class="pill">${ic(me.role==="owner"?"crown-bold":"user-bold",16)}${me.role==="owner"?"Egasi":"Admin"}</div></div></div>${banner()}`;
+}
+
+/* ---------- SKANER ---------- */
+async function startScan(box, rid, cb){
+  await stopScan();
+  $("#" + box).classList.add("on");
+  const F = Html5QrcodeSupportedFormats;
+  scanner = new Html5Qrcode(rid, {verbose:false, experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+    formatsToSupport:[F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39]});
+  scanner.start({facingMode:"environment"}, {fps:25, disableFlip:true,
+    qrbox:(w, h) => ({width:Math.floor(w * .9), height:Math.floor(Math.min(h * .5, 170))}),
+    videoConstraints:{facingMode:"environment", width:{ideal:1280}, height:{ideal:720}}}, cb, () => {})
+  .catch(() => { toast("Kameraga ruxsat bering", "danger-triangle-bold"); scanner = null; $("#" + box)?.classList.remove("on"); });
+}
+async function stopScan(){
+  if(scanner){ try{ await scanner.stop(); }catch(e){} scanner = null; }
+  document.querySelectorAll(".scan").forEach(e => e.classList.remove("on"));
+}
+const fresh = c => { const n = Date.now(); if(c === last.c && n - last.t < 2500) return false; last = {c, t:n}; feedback(); return true; };
+const toggleScan = () => scanner ? stopScan() : startScan("scanbox", "reader", c => fresh(c) && onCode(c));
+
+/* ---------- NOMNI AVTOMATIK TOPISH ---------- */
+async function online(code){
+  const one = async host => {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4500);
+    const r = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,quantity`, {signal:ctl.signal});
+    const j = await r.json(), p = j.product, n = p && (p.product_name || "").trim();
+    if(j.status !== 1 || !n) throw 0;
+    return [p.brands && p.brands.split(",")[0], n, p.quantity].filter(Boolean).join(" ");
+  };
+  try{ return await Promise.any(["world.openfoodfacts.org","world.openproductsfacts.org","world.openbeautyfacts.org"].map(one)); }
+  catch(e){ return ""; }
+}
+async function find(code){
+  let p = P.get(code); if(p) return p;
+  try{
+    const {data} = await T(sb.from("products").select("*").eq("barcode", code).maybeSingle(), 5000);
+    if(data){ P.set(code, data); return data; }
+  }catch(e){}
+  toast("Qidirilmoqda...", "magnifer-linear");
+  return {...blank(), barcode:code, name:await online(code)};
+}
+async function onCode(code){
+  if(!code || $("#modal")) return;
+  const p = await find(code);
+  if(p.isNew){ if($("#modal")) return; openForm(p, true); if(p.name) toast("Topildi: " + p.name); }
+  else { addCart(p); toast(p.name); }
+}
+
+/* ---------- SOTUV ---------- */
+function sellView(){
+  $("#view").innerHTML = head("Sotuv") + `<div class="scan" id="scanbox"><div id="reader"></div>${CORNERS}</div>
+  <label class="field">${ic("magnifer-linear",20)}<input id="manual" autocomplete="off" placeholder="Nomi yoki shtrix-kod (skaner shu yerga yozadi)" oninput="sq()" onkeydown="if(event.key==='Enter')manualAdd()"></label>
+  <div id="sres"></div><div id="cart"></div>`;
+  drawCart();
+  if(S.auto) setTimeout(toggleScan, 300);
+  if(FINE) $("#manual").focus();
+}
+function sq(){
+  const q = $("#manual").value.trim().toLowerCase();
+  const r = q ? [...P.values()].filter(p => p.name.toLowerCase().includes(q) || p.barcode.includes(q)).slice(0, 6) : [];
+  $("#sres").innerHTML = r.map(p => `<div class="card" onclick="pick('${encodeURIComponent(p.barcode)}')"><div class="ico">${ic("box-bold-duotone",24)}</div>
+  <div class="grow"><b>${esc(p.name)}</b><small>${esc(p.barcode)}</small></div><b class="right blue">${money(p.price)}</b></div>`).join("");
+}
+function pick(b){ addCart(P.get(decodeURIComponent(b))); $("#manual").value = ""; $("#sres").innerHTML = ""; }
+function manualAdd(){
+  const v = $("#manual").value.trim(); if(!v) return;
+  if(P.has(v)) return pick(encodeURIComponent(v));
+  const first = $("#sres").firstElementChild;
+  if(first) return first.click();
+  if(/^[0-9A-Za-z\-]{6,}$/.test(v)){ $("#manual").value = ""; onCode(v); }
+}
+function drawCart(){
+  const total = cart.reduce((s, c) => s + c.qty * c.price, 0);
+  $("#cart").innerHTML = cart.length ? `<h2>Savat: ${cart.length} xil <button class="btn red sm" onclick="cart=[];drawCart()">${ic("trash-bin-trash-bold",18)} Tozalash</button></h2>` +
+    cart.map((c, i) => `<div class="card"><div class="ico">${ic("box-bold-duotone",24)}</div>
+    <div class="grow"><b>${esc(c.name)}</b><small class="blue" style="font-weight:700">${money(c.price)} / ${esc(c.unit)}</small></div>
+    <div class="qty"><button onclick="qty(${i},-1)">${ic("minus-circle-bold",28)}</button><b onclick="setQty(${i})">${c.qty}</b><button onclick="qty(${i},1)">${ic("add-circle-bold",28)}</button></div></div>`).join("")
+    : `<div class="empty">${ic("cart-large-2-bold-duotone",54)}<div>Savat bo'sh</div><small>Skanerlang yoki nomini qidiring</small></div>`;
+  let s = $("#slab");
+  if(!s){ s = document.createElement("div"); s.id = "slab"; s.className = "slab"; document.body.appendChild(s); }
+  s.innerHTML = `<div class="srow"><span class="mute">Jami</span><b>${money(total)}</b></div>
+  <div class="row"><button class="btn" onclick="toggleScan()">${ic("scanner-bold",22)} Skaner</button>
+  <button class="btn b" ${cart.length && subOK() ? "" : "disabled"} onclick="sell()">${subOK() ? "Sotish" : "Obuna tugagan"} ${ic("alt-arrow-right-bold",20)}</button></div>`;
+}
+function qty(i, d){
+  const c = cart[i]; c.qty = Math.round((c.qty + d) * 1000) / 1000;
+  if(c.qty <= 0) cart.splice(i, 1);
+  else if(c.qty > c.stock) toast("Omborda faqat " + c.stock + " " + c.unit, "danger-triangle-bold");
+  drawCart();
+}
+function setQty(i){
+  const v = parseFloat(String(prompt("Miqdor (masalan 0.5):", cart[i].qty) || "").replace(",", "."));
+  if(v > 0){ cart[i].qty = v; drawCart(); }
+}
+function addCart(p){
+  const c = cart.find(x => x.barcode === p.barcode);
+  c ? c.qty++ : cart.push({...p, qty:1});
+  if(tab === "sell") drawCart();
+}
+async function sell(){
+  if(!cart.length) return;
+  if(!subOK()){ await refreshShop(); if(!subOK()) return toast("Obuna muddati tugagan", "danger-triangle-bold"); }
+  if(cart.some(c => c.price <= 0)) return toast("Narxi 0 bo'lgan mahsulot bor", "danger-triangle-bold");
+  const items = cart.map(c => ({barcode:c.barcode, name:c.name, qty:c.qty, price:c.price}));
+  const total = items.reduce((a, i) => a + i.qty * i.price, 0);
+  const s = {id:uid(), at:new Date().toISOString(), items};
+  Q.push(s); saveQ();
+  items.forEach(i => { const p = P.get(i.barcode); if(p) p.stock -= i.qty; }); cacheP();
+  cart = []; drawCart(); toast("Sotildi: " + money(total));
+  if(S.print) printReceipt({code:code6(s.id), at:s.at, items, total});
+  updBadge(); flush();
+}
+
+/* ---------- CHEKLAR ---------- */
+let rf = "today", cur = null;
+async function receiptsView(){
+  $("#view").innerHTML = head("Cheklar") + `<div class="chips">${[["today","Bugun"],["yest","Kecha"],["week","7 kun"]].map(([k, l]) => `<button class="chip ${rf===k?"on":""}" onclick="rf='${k}';receiptsView()">${l}</button>`).join("")}</div><div id="rlist" class="empty">Yuklanmoqda...</div>`;
+  const d0 = new Date(); d0.setHours(0,0,0,0);
+  const from = rf === "yest" ? new Date(+d0 - 864e5) : rf === "week" ? new Date(+d0 - 6 * 864e5) : d0;
+  let q = sb.from("sales").select("id,total,created_at,status,client_id").gte("created_at", from.toISOString()).order("created_at", {ascending:false}).limit(200);
+  if(rf === "yest") q = q.lt("created_at", d0.toISOString());
+  let rows = [], err = "";
+  try{ const {data, error} = await T(q); if(error) throw error; rows = data || []; }catch(e){ err = "Internet yo'q: faqat sinxronlanmagan cheklar ko'rsatildi"; }
+  const pend = rf === "today" ? Q.map(s => ({local:true, id:s.id, client_id:s.id, created_at:s.at, status:"pending", total:s.items.reduce((a, i) => a + i.qty * i.price, 0)})).reverse() : [];
+  const list = [...pend, ...rows.filter(r => !Q.some(s => s.id === r.client_id))];
+  window._rec = list;
+  const cn = s => s.status === "canceled";
+  $("#rlist").className = "";
+  $("#rlist").innerHTML = (err ? `<small style="margin-bottom:8px">${err}</small>` : "") + (list.length ? list.map((s, i) => `<div class="card" onclick="openReceipt(${i})">
+    <div class="ico" style="${cn(s) ? "background:var(--redl);color:var(--red)" : ""}">${ic("bill-list-bold-duotone",24)}</div>
+    <div class="grow"><b style="${cn(s) ? "text-decoration:line-through" : ""}">${money(s.total)}</b><small>${fmtT(s.created_at)} · ${code6(s.client_id || s.id)}</small></div>
+    ${cn(s) ? '<span class="tag low">Bekor</span>' : s.local ? '<span class="tag" style="background:#fff3d6;color:#8a5a00">Kutmoqda</span>' : ""}</div>`).join("")
+    : `<div class="empty">${ic("bill-list-bold-duotone",54)}<div>Chek yo'q</div></div>`);
+}
+async function openReceipt(i){
+  const s = window._rec[i]; closeForm();
+  let items = [];
+  if(s.local) items = (Q.find(x => x.id === s.id) || {}).items || [];
+  else{
+    try{ const {data} = await T(sb.from("sale_items").select("*").eq("sale_id", s.id)); items = data || []; }
+    catch(e){ return toast("Internet yo'q", "danger-triangle-bold"); }
+  }
+  cur = {...s, items, code:code6(s.client_id || s.id), at:s.created_at};
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div><h1 style="font-size:24px">${money(s.total)}</h1><small style="margin-bottom:10px">${fmtT(s.created_at)} · Chek ${cur.code}${s.status === "canceled" ? " · BEKOR QILINGAN" : ""}</small>
+  ${items.map(x => `<div class="line"><span>${esc(x.name)}<small>${x.qty} × ${money(x.price)}</small></span><b>${money(x.qty * x.price)}</b></div>`).join("")}
+  <div class="row" style="margin-top:16px"><button class="btn b" onclick="printReceipt(cur)">${ic("printer-bold",20)} Chop etish</button>
+  ${(s.local || (me.role === "owner" && s.status === "done")) ? `<button class="btn red" onclick="cancelReceipt()">${ic("close-circle-bold",20)} Bekor qilish</button>` : ""}
+  <button class="btn auto" onclick="closeForm()">${ic("close-circle-linear",22)}</button></div></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m);
+}
+async function cancelReceipt(){
+  if(!confirm("Chek bekor qilinsinmi? Mahsulotlar omborga qaytadi.")) return;
+  const s = cur;
+  if(s.local){
+    const x = Q.find(q => q.id === s.id);
+    if(x){ x.items.forEach(i => { const p = P.get(i.barcode); if(p) p.stock += i.qty; }); Q = Q.filter(q => q.id !== s.id); saveQ(); cacheP(); }
+    closeForm(); updBadge(); return receiptsView();
+  }
+  try{ const {error} = await T(sb.rpc("cancel_sale", {p_id:s.id})); if(error) throw error; }
+  catch(e){ return toast("Xato: " + (e.message || "internet yo'q"), "danger-triangle-bold"); }
+  closeForm(); toast("Chek bekor qilindi"); await loadP(); receiptsView();
+}
+
+/* ---------- MAHSULOTLAR ---------- */
+function productsView(){
+  $("#view").innerHTML = head("Mahsulotlar") + `<div class="chips" id="chips"></div>
+  <div class="row"><label class="field" style="margin:0">${ic("magnifer-linear",20)}<input id="q" placeholder="Nomi yoki shtrix-kod" oninput="drawProducts()"></label>
+  <button class="btn b auto" onclick="openForm(blank())">${ic("add-circle-bold",26)}</button></div><div id="plist" style="margin-top:12px"></div>`;
+  drawProducts();
+}
+function drawProducts(){
+  const all = [...P.values()], low = p => p.stock > 0 && p.stock <= S.low, out = p => p.stock <= 0;
+  const cnt = {all:all.length, low:all.filter(low).length, out:all.filter(out).length};
+  $("#chips").innerHTML = [["all","Hammasi"],["low","Tugayotgan"],["out","Tugagan"]].map(([k, l]) => `<button class="chip ${pf===k?"on":""}" onclick="pf='${k}';drawProducts()">${l} (${cnt[k]})</button>`).join("");
+  const q = ($("#q")?.value || "").toLowerCase();
+  shown = all.filter(p => (pf === "all" || (pf === "low" ? low(p) : out(p))) && (p.name.toLowerCase().includes(q) || p.barcode.includes(q)))
+    .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 200);
+  $("#plist").innerHTML = shown.length ? shown.map((p, i) => `<div class="card" onclick="openForm(shown[${i}])"><div class="ico">${ic("box-bold-duotone",24)}</div>
+    <div class="grow"><b>${esc(p.name)}</b><small class="blue" style="font-weight:700">${money(p.price)}</small><small>${esc(p.barcode)}</small></div>
+    <div class="right"><span class="tag ${p.stock<=S.low?"low":""}">${p.stock} ${esc(p.unit)}</span></div></div>`).join("")
+    : `<div class="empty">${ic("box-minimalistic-bold-duotone",54)}<div>Mahsulot yo'q</div><small>+ tugmasi, skaner yoki Sozlamalar > Excel'dan yuklash orqali qo'shing</small></div>`;
+}
+function openForm(p, fromSell = false){
+  closeForm();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  const units = [...new Set(["dona","kg","litr","paket", p.unit])];
+  m.innerHTML = `<div><h1 style="margin-bottom:14px;font-size:22px">${p.isNew ? "Yangi mahsulot" : "Tahrirlash"}</h1>
+  <div class="scan" id="fscan"><div id="freader"></div>${CORNERS}</div>
+  <div class="row"><label class="field" style="margin:0 0 10px">${ic("hashtag-square-bold-duotone",20)}<input id="f_code" inputmode="numeric" placeholder="Shtrix-kod" value="${esc(p.barcode)}" ${p.isNew ? "" : "readonly"} onchange="autoName()" onkeydown="if(event.key==='Enter'){event.preventDefault();autoName()}"></label>
+  ${p.isNew ? `<button class="btn b auto" style="margin-bottom:10px" onclick="formScan()">${ic("scanner-bold",24)}</button>` : ""}</div>
+  <label class="field">${ic("tag-bold-duotone",20)}<input id="f_name" placeholder="Nomi (bo'sh qolsa, avtomatik topiladi)" value="${esc(p.name)}"></label>
+  <div class="row"><label class="field">${ic("wallet-money-bold-duotone",20)}<input id="f_price" type="number" inputmode="decimal" placeholder="Narxi" value="${p.price || ""}"></label>
+  <label class="field">${ic("box-bold-duotone",20)}<input id="f_stock" type="number" inputmode="decimal" placeholder="Qoldiq" value="${p.stock || ""}"></label></div>
+  <select id="f_unit">${units.map(u => `<option ${u===p.unit?"selected":""}>${esc(u)}</option>`).join("")}</select>
+  <div class="row"><button class="btn b" onclick="saveProduct(${fromSell})">Saqlash</button><button class="btn" onclick="closeForm()">Bekor</button>
+  ${p.isNew ? "" : `<button class="btn red auto" onclick="delProduct('${encodeURIComponent(p.barcode)}')">${ic("trash-bin-trash-bold",22)}</button>`}</div></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m);
+  setTimeout(() => $(fromSell ? "#f_price" : (p.isNew && !p.barcode && FINE ? "#f_code" : "#none"))?.focus(), 250);
+}
+function closeForm(){ stopScan(); $("#modal")?.remove(); }
+async function autoName(){
+  const code = $("#f_code").value.trim(); if(!code) return;
+  const ex = P.get(code);
+  if(ex){ $("#f_name").value = ex.name; $("#f_price").value = ex.price || ""; $("#f_stock").value = ex.stock || ""; $("#f_unit").value = ex.unit; return toast("Bu mahsulot bazada bor", "info-circle-bold"); }
+  if($("#f_name").value.trim()) return;
+  toast("Nomi qidirilmoqda...", "magnifer-linear");
+  const n = await online(code);
+  if(n && !$("#f_name").value.trim()){ $("#f_name").value = n; toast("Topildi: " + n); }
+  else if(!n) toast("Nom topilmadi, bo'sh qoldirsangiz ham bo'ladi", "danger-triangle-bold");
+  $("#f_price")?.focus();
+}
+function formScan(){
+  if(scanner) return stopScan();
+  startScan("fscan", "freader", async c => {
+    if(!fresh(c)) return;
+    await stopScan(); $("#f_code").value = c; autoName();
+  });
+}
+async function saveProduct(fromSell){
+  const code = $("#f_code").value.trim();
+  if(!code) return toast("Shtrix-kodni kiriting yoki skanerlang", "danger-triangle-bold");
+  const p = {shop_id:me.shop_id, barcode:code, name:$("#f_name").value.trim() || "Nomsiz " + code.slice(-4), price:Math.max(0, +$("#f_price").value || 0), stock:+$("#f_stock").value || 0, unit:$("#f_unit").value};
+  const {error} = await sb.from("products").upsert(p, {onConflict:"shop_id,barcode"});
+  if(error) return toast(errMsg(error), "danger-triangle-bold");
+  P.set(code, p); cacheP(); closeForm(); toast("Saqlandi");
+  if(fromSell) addCart(p); else if(tab === "products") drawProducts();
+}
+async function delProduct(code){
+  if(!confirm("Mahsulot o'chirilsinmi?")) return;
+  code = decodeURIComponent(code);
+  const {error} = await sb.from("products").delete().eq("barcode", code);
+  if(error) return toast(errMsg(error), "danger-triangle-bold");
+  P.delete(code); cacheP(); closeForm(); drawProducts();
+}
+
+/* ---------- HISOBOT (egasi) ---------- */
+let tp = "week";
+async function reportView(){
+  $("#view").innerHTML = head("Hisobot") + `<div id="rep" class="empty">Yuklanmoqda...</div>`;
+  const pad = n => String(n).padStart(2, "0"), ds = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  const d0 = new Date(); d0.setHours(0,0,0,0);
+  const m0 = new Date(d0.getFullYear(), d0.getMonth(), 1);
+  const days = [...Array(7)].map((_, i) => { const d = new Date(d0); d.setDate(d.getDate() - 6 + i); return d; });
+  const since = new Date(Math.min(m0, days[0]));
+  let rows = [];
+  try{ const {data, error} = await T(sb.rpc("daily_totals", {p_from:since.toISOString()})); if(error) throw error; rows = data || []; }
+  catch(e){ $("#rep").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone",54)}<div>Hisobotni yuklab bo'lmadi</div><small>${esc(e.message || "")}</small><small>Internetni tekshiring</small></div>`; return; }
+  const by = {}; rows.forEach(r => by[r.day] = r);
+  const tot = days.map(d => +(by[ds(d)]?.total || 0)), mx = Math.max(...tot, 1);
+  const td = by[ds(d0)] || {cnt:0, total:0};
+  const mo = rows.filter(r => r.day >= ds(m0)), moS = mo.reduce((a, r) => a + +r.total, 0), moC = mo.reduce((a, r) => a + +r.cnt, 0);
+  const low = [...P.values()].filter(p => p.stock <= S.low).sort((a, b) => a.stock - b.stock).slice(0, 20);
+  const from = tp === "today" ? d0 : tp === "week" ? days[0] : m0;
+  let top = [];
+  try{ const {data} = await T(sb.rpc("top_products", {p_from:from.toISOString(), p_to:new Date(+d0 + 864e5).toISOString()})); top = data || []; }catch(e){}
+  const tm = Math.max(...top.map(t => +t.out_qty), 1);
+  $("#rep").className = "";
+  $("#rep").innerHTML = `<div class="stat"><small>Bugungi savdo · ${td.cnt} ta chek</small><div class="big">${money(+td.total)}</div></div>
+  <div class="card"><div class="ico">${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Shu oy</b><small>${moC} ta chek</small></div><b class="right">${money(moS)}</b></div>
+  <h2>Oxirgi 7 kun</h2><div class="bars">${days.map((d, i) => `<div><i style="height:${Math.round(tot[i] / mx * 85)}%"></i><small>${d.getDate()}</small></div>`).join("")}</div>
+  <h2>Eng ko'p sotilganlar</h2>
+  <div class="chips">${[["today","Bugun"],["week","7 kun"],["month","Shu oy"]].map(([k, l]) => `<button class="chip ${tp===k?"on":""}" onclick="tp='${k}';reportView()">${l}</button>`).join("")}</div>
+  ${top.length ? top.slice(0, 15).map((t, i) => `<div class="card"><div class="rank">${i + 1}</div><div class="grow"><b>${esc(t.out_name)}</b><small>${+t.out_qty} sotildi · ${money(+t.out_revenue)}</small><div class="pbar"><i style="width:${Math.round(+t.out_qty / tm * 100)}%"></i></div></div></div>`).join("")
+    : `<div class="empty" style="padding:14px">Bu davrda sotuv yo'q</div>`}
+  <h2>Tugayotgan mahsulotlar</h2>
+  ${low.length ? low.map(p => `<div class="card"><div class="ico" style="background:var(--redl);color:var(--red)">${ic("danger-triangle-bold-duotone",24)}</div><div class="grow"><b>${esc(p.name)}</b></div><span class="tag low">${p.stock} ${esc(p.unit)}</span></div>`).join("")
+    : `<div class="empty" style="padding:14px">${ic("check-circle-bold-duotone",34)}<div>Hammasi yetarli</div></div>`}`;
+}
+
+/* ---------- SOZLAMALAR ---------- */
+function sw(key, icon, title, sub){
+  return `<div class="card" onclick="tg('${key}')"><div class="ico">${ic(icon,24)}</div><div class="grow"><b>${title}</b><small>${sub}</small></div><div class="sw ${S[key] ? "on" : ""}"></div></div>`;
+}
+function tg(k){ S[k] = !S[k]; saveS(); setView(); }
+const arrow = ic("alt-arrow-right-linear", 20);
+function setView(){
+  const owner = me.role === "owner", d = daysLeft();
+  $("#view").innerHTML = head("Sozlamalar") + `
+  <div class="card"><div class="ico">${ic("user-rounded-bold-duotone",26)}</div><div class="grow"><b>${esc(phoneOf(me.email))}</b><small>${owner ? "Egasi" : "Admin"}</small></div></div>
+  <h2>Do'kon</h2>
+  ${owner ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input value="${esc(shopName())}" placeholder="Do'kon nomi" onchange="saveShopName(this.value)"></label>`
+    : `<div class="card"><div class="ico">${ic("shop-2-bold-duotone",24)}</div><div class="grow"><b>${esc(shopName())}</b></div></div>`}
+  ${SH ? `<div class="card"><div class="ico" ${d < 0 ? 'style="background:var(--redl);color:var(--red)"' : ""}>${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Obuna: ${fmtD(SH.paid_until)} gacha</b><small>${d >= 0 ? d + " kun qoldi" : "muddati tugagan"} · Aloqa: ${esc(SUPPORT.phone)}</small></div></div>` : ""}
+  <label class="field">${ic("danger-triangle-bold-duotone",20)}<input type="number" inputmode="numeric" value="${S.low}" placeholder="Kam qoldiq chegarasi" onchange="S.low=Math.max(0,+this.value||0);saveS();toast('Saqlandi')"></label>
+  <small style="margin:-4px 0 6px 4px">Shu sondan kam qolganda "tugayotgan" deb ko'rsatiladi</small>
+  <h2>Skaner</h2>
+  ${sw("beep","volume-loud-bold-duotone","Ovoz","Skanerlaganda signal")}
+  ${sw("vib","smartphone-bold-duotone","Tebranish","Skanerlaganda tebranadi")}
+  ${sw("auto","scanner-bold","Avtomatik ochish","Sotuv ochilganda kamera yoqiladi")}
+  <h2>Printer (chek)</h2>
+  ${sw("print","printer-bold","Avtomatik chop etish","Sotuvdan keyin chek chiqadi")}
+  <label class="field">${ic("document-bold-duotone",20)}<select style="border:0;margin:0;padding:14px 0" onchange="S.pw=+this.value;saveS();toast('Saqlandi')"><option value="80" ${S.pw != 58 ? "selected" : ""}>Qog'oz kengligi: 80 mm</option><option value="58" ${S.pw == 58 ? "selected" : ""}>Qog'oz kengligi: 58 mm</option></select></label>
+  <label class="field">${ic("pen-bold-duotone",20)}<input value="${esc(S.foot)}" placeholder="Chek pastidagi yozuv" onchange="S.foot=this.value.trim();saveS();toast('Saqlandi')"></label>
+  <button class="btn full" onclick="printReceipt({code:'TEST',at:new Date().toISOString(),items:[{name:'Sinov mahsulot',qty:1,price:1000}],total:1000})">${ic("printer-bold",20)} Sinov chek</button>
+  <h2>Ma'lumotlar</h2>
+  <div class="card" onclick="flush().then(()=>toast(Q.length?'Sinxronlanmagan: '+Q.length:'Hammasi sinxron'))"><div class="ico">${ic("cloud-upload-bold-duotone",24)}</div><div class="grow"><b>Sinxronlash</b><small>Kutayotgan cheklar: ${Q.length}</small></div></div>
+  ${Qf.length ? `<div class="card" onclick="retryFailed()"><div class="ico" style="background:var(--redl);color:var(--red)">${ic("danger-triangle-bold-duotone",24)}</div><div class="grow"><b>Qabul qilinmagan cheklar: ${Qf.length}</b><small>${esc(Qf[0].err || "")} · bosib qayta yuboring</small></div></div>` : ""}
+  <div class="card" onclick="loadP().then(()=>toast('Yangilandi'))"><div class="ico">${ic("refresh-circle-bold-duotone",24)}</div><div class="grow"><b>Mahsulotlarni yangilash</b><small>Bazadan qayta yuklash</small></div></div>
+  ${owner ? `<h2>Boshqaruv</h2>
+  <div class="card" onclick="show('admins')"><div class="ico">${ic("users-group-rounded-bold-duotone",24)}</div><div class="grow"><b>Xodimlar</b><small>Kod berish va tasdiqlash</small></div>${arrow}</div>
+  <div class="card" onclick="$('#impf').click()"><div class="ico">${ic("upload-minimalistic-bold",24)}</div><div class="grow"><b>Excel'dan mahsulot yuklash</b><small>CSV fayl: shtrix-kod, nomi, narxi, qoldiq</small></div>${arrow}</div>
+  <input type="file" id="impf" accept=".csv,.txt,text/csv" style="display:none" onchange="importFile(this)">
+  <div class="card" onclick="exportCSV()"><div class="ico">${ic("download-minimalistic-bold",24)}</div><div class="grow"><b>Mahsulotlarni yuklab olish</b><small>CSV (Excel'da ochiladi)</small></div>${arrow}</div>
+  <div class="card" onclick="exportSales()"><div class="ico">${ic("file-text-bold-duotone",24)}</div><div class="grow"><b>Cheklarni yuklab olish</b><small>Zaxira nusxa: barcha sotuvlar (CSV)</small></div>${arrow}</div>` : ""}
+  <h2>Hisob</h2>
+  <div class="card" onclick="changePw()"><div class="ico">${ic("lock-password-bold-duotone",24)}</div><div class="grow"><b>Parolni o'zgartirish</b></div>${arrow}</div>
+  <div style="margin-top:12px"><button class="btn red full" onclick="logout()">${ic("logout-2-bold-duotone")} Chiqish</button></div>
+  <small style="text-align:center;margin-top:14px">Do'kon v${VER}</small>`;
+}
+async function saveShopName(v){
+  v = v.trim(); if(v.length < 2) return toast("Do'kon nomini kiriting", "danger-triangle-bold");
+  const {error} = await sb.rpc("set_shop_name", {p_name:v});
+  if(error) return toast(error.message, "danger-triangle-bold");
+  if(SH) SH.name = v; cacheMe(); toast("Saqlandi");
+}
+async function changePw(){
+  const p = prompt("Yangi parol (kamida 6 belgi):"); if(!p) return;
+  if(p.length < 6) return toast("Parol kamida 6 belgi bo'lsin", "danger-triangle-bold");
+  const {error} = await sb.auth.updateUser({password:p});
+  error ? toast(error.message, "danger-triangle-bold") : toast("Parol yangilandi");
+}
+
+/* ---------- EXCEL (CSV) YUKLASH / YUKLAB OLISH ---------- */
+const safe = v => typeof v === "string" && /^[=+\-@]/.test(v) ? "'" + v : v;
+function download(name, rows){
+  const csv = "﻿" + rows.map(r => r.map(v => `"${String(safe(v) ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8"})); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function exportCSV(){
+  download("mahsulotlar.csv", [["shtrix-kod","nomi","narxi","qoldiq","birlik"], ...[...P.values()].map(p => [p.barcode, p.name, p.price, p.stock, p.unit])]);
+}
+async function exportSales(){
+  toast("Tayyorlanmoqda...", "download-minimalistic-bold");
+  const rows = [["chek","sana","holat","shtrix-kod","nomi","miqdor","narx","summa"]];
+  try{
+    for(let f = 0; ; f += 1000){
+      const {data, error} = await T(sb.from("sale_items").select("sale_id,barcode,name,qty,price,sales(created_at,status)").order("id").range(f, f + 999), 20000);
+      if(error) throw error;
+      (data || []).forEach(r => rows.push([r.sale_id, r.sales ? fmtT(r.sales.created_at) : "", r.sales && r.sales.status === "canceled" ? "bekor" : "", r.barcode, r.name, r.qty, r.price, r.qty * r.price]));
+      if(!data || data.length < 1000) break;
+    }
+  }catch(e){ return toast(errMsg(e), "danger-triangle-bold"); }
+  download("cheklar.csv", rows); toast(rows.length - 1 + " qator yuklab olindi");
+}
+const ALIAS = {
+  barcode:["shtrix-kod","shtrixkod","shtrix kod","shtrix","barcode","kod","штрихкод","штрих-код","штрих код"],
+  name:["nomi","nom","nomlanishi","name","mahsulot","mahsulot nomi","наименование","название","товар"],
+  price:["narxi","narx","price","sotuv narxi","цена"],
+  stock:["qoldiq","qoldig'i","soni","miqdor","stock","qty","остаток","количество"],
+  unit:["birlik","o'lchov","unit","ед","ед.","единица"]
+};
+const mapHeader = h => { const k = String(h).trim().toLowerCase().replace(/[’`ʻ‘]/g, "'"); for(const f in ALIAS) if(ALIAS[f].includes(k)) return f; return null; };
+function parseCSV(text){
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  const cnt = c => first.split(c).length - 1;
+  const d = cnt(";") >= cnt(",") && cnt(";") >= cnt("\t") ? ";" : cnt("\t") > cnt(",") ? "\t" : ",";
+  const rows = []; let row = [], cell = "", q = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+    if(q){ if(c === '"'){ if(text[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += c; }
+    else if(c === '"') q = true;
+    else if(c === d){ row.push(cell); cell = ""; }
+    else if(c === "\n"){ row.push(cell); rows.push(row); row = []; cell = ""; }
+    else if(c !== "\r") cell += c;
+  }
+  if(cell !== "" || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ""));
+}
+const num = v => { const n = parseFloat(String(v ?? "").replace(/[\s ]/g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
+async function importFile(inp){
+  const f = inp.files[0]; inp.value = ""; if(!f) return;
+  const rows = parseCSV(await f.text());
+  if(!rows.length) return toast("Fayl bo'sh", "danger-triangle-bold");
+  let idx = {}, start = 0;
+  rows[0].forEach((h, i) => { const k = mapHeader(h); if(k && !(k in idx)) idx[k] = i; });
+  if("barcode" in idx) start = 1; else idx = {barcode:0, name:1, price:2, stock:3, unit:4};
+  const map = new Map(); let bad = 0, noname = 0;
+  for(const r of rows.slice(start)){
+    let code = String(r[idx.barcode] ?? "").trim().replace(/\.0+$/, "");
+    if(!code || /e\+/i.test(code)){ bad++; continue; }
+    let name = String(r[idx.name] ?? "").trim();
+    if(!name){ name = "Nomsiz " + code.slice(-4); noname++; }
+    let unit = String(r[idx.unit] ?? "").trim().toLowerCase();
+    map.set(code, {barcode:code, name, price:Math.max(0, num(r[idx.price])), stock:num(r[idx.stock]), unit:unit || "dona"});
+  }
+  const list = [...map.values()];
+  if(!list.length) return toast("Mahsulot topilmadi. Birinchi qatorda sarlavha bo'lishi kerak", "danger-triangle-bold");
+  window._imp = list;
+  const upd = list.filter(p => P.has(p.barcode)).length;
+  closeForm();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div><h1 style="font-size:22px;margin-bottom:10px">Yuklashni tasdiqlang</h1>
+  <div class="card"><div class="ico">${ic("box-bold-duotone",24)}</div><div class="grow"><b>${list.length} ta mahsulot</b><small>${list.length - upd} ta yangi · ${upd} ta yangilanadi (narx va qoldiq almashadi)</small></div></div>
+  ${bad || noname ? `<small style="margin-bottom:8px">${bad ? bad + " ta qator o'tkazib yuborildi (shtrix-kod yo'q yoki buzilgan). " : ""}${noname ? noname + " ta mahsulot nomsiz." : ""}</small>` : ""}
+  ${list.slice(0, 3).map(p => `<div class="line"><span>${esc(p.name)}<small>${esc(p.barcode)}</small></span><b>${money(p.price)} · ${p.stock}</b></div>`).join("")}
+  <div class="row" style="margin-top:16px"><button class="btn b" id="impgo" onclick="runImport()">Yuklash</button><button class="btn" onclick="closeForm()">Bekor</button></div></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m);
+}
+async function runImport(){
+  const list = window._imp || [], btn = $("#impgo"); if(btn) btn.disabled = true;
+  let done = 0;
+  for(let i = 0; i < list.length; i += 500){
+    const chunk = list.slice(i, i + 500).map(p => ({...p, shop_id:me.shop_id}));
+    const {error} = await T(sb.from("products").upsert(chunk, {onConflict:"shop_id,barcode"}), 30000).catch(e => ({error:e}));
+    if(error){ toast(errMsg(error), "danger-triangle-bold"); break; }
+    done += chunk.length; toast(done + " / " + list.length, "upload-minimalistic-bold");
+  }
+  await loadP(); closeForm();
+  if(done === list.length) toast(done + " ta mahsulot yuklandi");
+  if(tab === "products") productsView();
+}
+
+/* ---------- XODIMLAR (egasi) ---------- */
+async function adminsView(){
+  $("#view").innerHTML = head("Xodimlar") + `<h2 style="margin-top:0">Do'kon kodi</h2><div class="codebox">${esc(SH?.code || "—")}</div>
+  <small style="margin-bottom:14px">Xodimga shu kodni bering: ilovada ro'yxatdan o'tib, "Xodim sifatida qo'shilish"ni tanlab kodni kiritadi. Keyin siz bu yerda tasdiqlaysiz.</small>
+  <div id="alist"></div>`;
+  const {data} = await sb.from("profiles").select("*").order("role");
+  const L = {owner:"Egasi", admin:"Admin", pending:"Tasdiq kutmoqda"};
+  $("#alist").innerHTML = (data || []).map(u => `<div class="card"><div class="ico">${ic(u.role==="owner"?"crown-bold-duotone":"user-rounded-bold-duotone",24)}</div>
+  <div class="grow"><b>${esc(phoneOf(u.email))}</b><small>${L[u.role] || ""}</small></div>
+  ${u.role === "owner" ? "" : u.role === "admin" ? `<button class="btn red sm" onclick="setRole('${u.id}','pending')">Bloklash</button>` : `<button class="btn b sm" onclick="setRole('${u.id}','admin')">Tasdiqlash</button>`}</div>`).join("");
+}
+async function setRole(id, role){
+  const {error} = await sb.rpc("set_member_role", {p_user:id, p_role:role});
+  error ? toast(error.message, "danger-triangle-bold") : adminsView();
+}
+
+/* ---------- USB SKANER (klaviatura kabi), UZILISH, XATOLAR ---------- */
+let kb = "", kt = 0;
+addEventListener("keydown", e => {
+  if(!ready() || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey || $("#modal")) return;
+  const n = Date.now(); if(n - kt > 120) kb = ""; kt = n;
+  if(e.key === "Enter"){
+    const c = kb; kb = "";
+    if(c.length >= 4){
+      feedback();
+      if(tab === "sell") onCode(c); else if(tab === "products"){ $("#q").value = c; drawProducts(); }
+    }
+  }else if(e.key.length === 1) kb += e.key;
+});
+document.addEventListener("click", () => {
+  if(FINE && tab === "sell" && ready() && !$("#modal") && !/INPUT|SELECT/.test(document.activeElement.tagName)) setTimeout(() => $("#manual")?.focus(), 60);
+});
+document.addEventListener("visibilitychange", () => { if(!document.hidden){ wl(); flush(); refreshShop(); } });
+addEventListener("online", () => { flush(); refreshShop(); }); setInterval(flush, 20000); setInterval(refreshShop, 600000);
+sb.auth.onAuthStateChange(ev => { if(ev === "PASSWORD_RECOVERY"){ RECOVERY = true; recoveryView(); } });
+addEventListener("unhandledrejection", e => { e.preventDefault(); console.warn(e.reason); });
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+init();
+</script>
+</body>
+</html>
