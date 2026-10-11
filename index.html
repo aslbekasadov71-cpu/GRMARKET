@@ -49,6 +49,12 @@ input:focus,select:focus{border-color:var(--b)}
 .card>.grow{flex:1;min-width:0}
 .card b{display:block;overflow:hidden;text-overflow:ellipsis}
 .ico{width:44px;height:44px;border-radius:12px;background:var(--bl);color:var(--b);display:grid;place-items:center;flex:none}
+.ico.im{position:relative;overflow:hidden;background:#fff;border:1px solid var(--line)}
+.ico.im img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff}
+.marg{border-radius:14px;padding:10px 14px;margin:-2px 0 10px;background:var(--card);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.marg b{font-size:20px}.marg.pos b{color:#16a34a}.marg.neg b{color:var(--red)}.marg small{text-align:right}
+.fimg{display:flex;align-items:center;gap:12px;margin:-2px 0 10px}
+.fimg .ico{width:64px;height:64px;border-radius:14px}
 .blue{color:var(--b)}
 .right{text-align:right;flex:none}
 .tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--bl);color:var(--b);display:inline-block}
@@ -134,7 +140,7 @@ try{ S = {...DEF, ...JSON.parse(localStorage.getItem("dk") || "{}")}; }catch(e){
 const saveS = () => { try{ localStorage.setItem("dk", JSON.stringify(S)); }catch(e){} };
 let me = null, SH = null, tab = "sell", cart = [], scanner = null, last = {c:"", t:0}, P = new Map(), pf = "all", shown = [], ac, ob = "new";
 const CORNERS = '<i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>';
-const blank = () => ({barcode:"", name:"", price:0, stock:0, unit:"dona", isNew:true});
+const blank = () => ({barcode:"", name:"", price:0, cost:0, stock:0, unit:"dona", image:"", isNew:true});
 const ready = () => !!me && (me.role === "owner" || me.role === "admin");
 const shopName = () => (SH && SH.name) || S.shop;
 const subOK = () => !SH || SH.paid_until >= today();
@@ -423,17 +429,23 @@ const fresh = c => { const n = Date.now(); if(c === last.c && n - last.t < 2500)
 const toggleScan = () => scanner ? stopScan() : startScan("scanbox", "reader", c => fresh(c) && onCode(c));
 
 /* ---------- NOMNI AVTOMATIK TOPISH ---------- */
-async function online(code){
+async function lookup(code){
   const one = async host => {
     const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4500);
-    const r = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,quantity`, {signal:ctl.signal});
+    const r = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,quantity,image_front_small_url,image_small_url,image_front_url,image_url`, {signal:ctl.signal});
     const j = await r.json(), p = j.product, n = p && (p.product_name || "").trim();
-    if(j.status !== 1 || !n) throw 0;
-    return [p.brands && p.brands.split(",")[0], n, p.quantity].filter(Boolean).join(" ");
+    const img = p ? (p.image_front_small_url || p.image_small_url || p.image_front_url || p.image_url || "") : "";
+    if(j.status !== 1 || (!n && !img)) throw 0;
+    const br = p && p.brands ? p.brands.split(",")[0].trim() : "", qt = p && p.quantity ? String(p.quantity).trim() : "";
+    return {name: n ? [br && !n.toLowerCase().includes(br.toLowerCase()) ? br : "", n, qt && !n.toLowerCase().includes(qt.toLowerCase()) ? qt : ""].filter(Boolean).join(" ") : "", image: /^https:\/\//.test(img) ? img : ""};
   };
   try{ return await Promise.any(["world.openfoodfacts.org","world.openproductsfacts.org","world.openbeautyfacts.org"].map(one)); }
-  catch(e){ return ""; }
+  catch(e){ return {name:"", image:""}; }
 }
+const online = async code => (await lookup(code)).name;
+const thumb = (p, sz = 24) => p && p.image
+  ? `<div class="ico im">${ic("box-bold-duotone",sz)}<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'"></div>`
+  : `<div class="ico">${ic("box-bold-duotone",sz)}</div>`;
 async function find(code){
   let p = P.get(code); if(p) return p;
   try{
@@ -441,7 +453,8 @@ async function find(code){
     if(data){ P.set(code, data); return data; }
   }catch(e){}
   toast("Qidirilmoqda...", "magnifer-linear");
-  return {...blank(), barcode:code, name:await online(code)};
+  const r = await lookup(code);
+  return {...blank(), barcode:code, name:r.name, image:r.image};
 }
 async function onCode(code){
   if(!code || $("#modal")) return;
@@ -462,7 +475,7 @@ function sellView(){
 function sq(){
   const q = $("#manual").value.trim().toLowerCase();
   const r = q ? [...P.values()].filter(p => p.name.toLowerCase().includes(q) || p.barcode.includes(q)).slice(0, 6) : [];
-  $("#sres").innerHTML = r.map(p => `<div class="card" onclick="pick('${encodeURIComponent(p.barcode)}')"><div class="ico">${ic("box-bold-duotone",24)}</div>
+  $("#sres").innerHTML = r.map(p => `<div class="card" onclick="pick('${encodeURIComponent(p.barcode)}')">${thumb(p)}
   <div class="grow"><b>${esc(p.name)}</b><small>${esc(p.barcode)}</small></div><b class="right blue">${money(p.price)}</b></div>`).join("");
 }
 function pick(b){ addCart(P.get(decodeURIComponent(b))); $("#manual").value = ""; $("#sres").innerHTML = ""; }
@@ -476,7 +489,7 @@ function manualAdd(){
 function drawCart(){
   const total = cart.reduce((s, c) => s + c.qty * c.price, 0);
   $("#cart").innerHTML = cart.length ? `<h2>Savat: ${cart.length} xil <button class="btn red sm" onclick="cart=[];drawCart()">${ic("trash-bin-trash-bold",18)} Tozalash</button></h2>` +
-    cart.map((c, i) => `<div class="card"><div class="ico">${ic("box-bold-duotone",24)}</div>
+    cart.map((c, i) => `<div class="card">${thumb(c)}
     <div class="grow"><b>${esc(c.name)}</b><small class="blue" style="font-weight:700">${money(c.price)} / ${esc(c.unit)}</small></div>
     <div class="qty"><button onclick="qty(${i},-1)">${ic("minus-circle-bold",28)}</button><b onclick="setQty(${i})">${c.qty}</b><button onclick="qty(${i},1)">${ic("add-circle-bold",28)}</button></div></div>`).join("")
     : `<div class="empty">${ic("cart-large-2-bold-duotone",54)}<div>Savat bo'sh</div><small>Skanerlang yoki nomini qidiring</small></div>`;
@@ -581,13 +594,14 @@ function drawProducts(){
   const q = ($("#q")?.value || "").toLowerCase();
   shown = all.filter(p => (pf === "all" || (pf === "low" ? low(p) : out(p))) && (p.name.toLowerCase().includes(q) || p.barcode.includes(q)))
     .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 200);
-  $("#plist").innerHTML = shown.length ? shown.map((p, i) => `<div class="card" onclick="openForm(shown[${i}])"><div class="ico">${ic("box-bold-duotone",24)}</div>
-    <div class="grow"><b>${esc(p.name)}</b><small class="blue" style="font-weight:700">${money(p.price)}</small><small>${esc(p.barcode)}</small></div>
+  $("#plist").innerHTML = shown.length ? shown.map((p, i) => `<div class="card" onclick="openForm(shown[${i}])">${thumb(p)}
+    <div class="grow"><b>${esc(p.name)}</b><small class="blue" style="font-weight:700">${money(p.price)}${me.role === "owner" && p.cost > 0 && p.price > 0 ? ` · marja ${Math.round((p.price - p.cost) / p.price * 1000) / 10}%` : ""}</small><small>${esc(p.barcode)}</small></div>
     <div class="right"><span class="tag ${p.stock<=S.low?"low":""}">${p.stock} ${esc(p.unit)}</span></div></div>`).join("")
     : `<div class="empty">${ic("box-minimalistic-bold-duotone",54)}<div>Mahsulot yo'q</div><small>+ tugmasi, skaner yoki Sozlamalar > Excel'dan yuklash orqali qo'shing</small></div>`;
 }
 function openForm(p, fromSell = false){
   closeForm();
+  const owner = me.role === "owner"; formImg = p.image || "";
   const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
   const units = [...new Set(["dona","kg","litr","paket", p.unit])];
   m.innerHTML = `<div><h1 style="margin-bottom:14px;font-size:22px">${p.isNew ? "Yangi mahsulot" : "Tahrirlash"}</h1>
@@ -595,26 +609,55 @@ function openForm(p, fromSell = false){
   <div class="row"><label class="field" style="margin:0 0 10px">${ic("hashtag-square-bold-duotone",20)}<input id="f_code" inputmode="numeric" placeholder="Shtrix-kod" value="${esc(p.barcode)}" ${p.isNew ? "" : "readonly"} onchange="autoName()" onkeydown="if(event.key==='Enter'){event.preventDefault();autoName()}"></label>
   ${p.isNew ? `<button class="btn b auto" style="margin-bottom:10px" onclick="formScan()">${ic("scanner-bold",24)}</button>` : ""}</div>
   <label class="field">${ic("tag-bold-duotone",20)}<input id="f_name" placeholder="Nomi (bo'sh qolsa, avtomatik topiladi)" value="${esc(p.name)}"></label>
-  <div class="row"><label class="field">${ic("wallet-money-bold-duotone",20)}<input id="f_price" type="number" inputmode="decimal" placeholder="Narxi" value="${p.price || ""}"></label>
-  <label class="field">${ic("box-bold-duotone",20)}<input id="f_stock" type="number" inputmode="decimal" placeholder="Qoldiq" value="${p.stock || ""}"></label></div>
+  <div id="fimg"></div>
+  ${owner ? `<div class="row"><label class="field">${ic("download-minimalistic-bold-duotone",20)}<input id="f_cost" type="number" inputmode="decimal" placeholder="Kelish narxi" value="${p.cost || ""}" oninput="margin()"></label>
+  <label class="field">${ic("wallet-money-bold-duotone",20)}<input id="f_price" type="number" inputmode="decimal" placeholder="Sotilish narxi" value="${p.price || ""}" oninput="margin()"></label></div>
+  <div class="marg" id="marg"></div>
+  <label class="field">${ic("box-bold-duotone",20)}<input id="f_stock" type="number" inputmode="decimal" placeholder="Qoldiq" value="${p.stock || ""}"></label>`
+  : `<div class="row"><label class="field">${ic("wallet-money-bold-duotone",20)}<input id="f_price" type="number" inputmode="decimal" placeholder="Sotilish narxi" value="${p.price || ""}"></label>
+  <label class="field">${ic("box-bold-duotone",20)}<input id="f_stock" type="number" inputmode="decimal" placeholder="Qoldiq" value="${p.stock || ""}"></label></div>`}
   <select id="f_unit">${units.map(u => `<option ${u===p.unit?"selected":""}>${esc(u)}</option>`).join("")}</select>
   <div class="row"><button class="btn b" onclick="saveProduct(${fromSell})">Saqlash</button><button class="btn" onclick="closeForm()">Bekor</button>
   ${p.isNew ? "" : `<button class="btn red auto" onclick="delProduct('${encodeURIComponent(p.barcode)}')">${ic("trash-bin-trash-bold",22)}</button>`}</div></div>`;
   m.addEventListener("click", e => { if(e.target === m) closeForm(); });
   document.body.appendChild(m);
+  setImg(); margin();
+  if(!p.isNew && !p.image && p.barcode) lookup(p.barcode).then(r => { if(r.image && !formImg && $("#modal")) setImg(r.image); });
   setTimeout(() => $(fromSell ? "#f_price" : (p.isNew && !p.barcode && FINE ? "#f_code" : "#none"))?.focus(), 250);
+}
+let formImg = "";
+function setImg(u){
+  if(u !== undefined) formImg = u || "";
+  const b = $("#fimg"); if(!b) return;
+  b.innerHTML = formImg ? `<div class="fimg">${thumb({image:formImg}, 28)}<small style="flex:1">Rasm avtomatik topildi</small><button class="btn sm" onclick="setImg('')">Olib tashlash</button></div>` : "";
+}
+function margin(){
+  const m = $("#marg"); if(!m) return;
+  const pr = +$("#f_price").value || 0, c = +$("#f_cost").value || 0;
+  if(!c || !pr){ m.className = "marg"; m.innerHTML = `<span class="mute">Marja</span><small>Kelish va sotilish narxini kiriting</small>`; return; }
+  const f = x => Math.round(x * 10) / 10, profit = pr - c;
+  m.className = "marg " + (profit > 0 ? "pos" : profit < 0 ? "neg" : "");
+  m.innerHTML = `<span class="mute">Marja</span><div style="text-align:right"><b>${f(profit / pr * 100)}%</b><small>Foyda: ${profit < 0 ? "-" : ""}${money(Math.abs(profit))} · Ustama: ${f(profit / c * 100)}%</small></div>`;
 }
 function closeForm(){ stopScan(); $("#modal")?.remove(); }
 async function autoName(){
   const code = $("#f_code").value.trim(); if(!code) return;
   const ex = P.get(code);
-  if(ex){ $("#f_name").value = ex.name; $("#f_price").value = ex.price || ""; $("#f_stock").value = ex.stock || ""; $("#f_unit").value = ex.unit; return toast("Bu mahsulot bazada bor", "info-circle-bold"); }
-  if($("#f_name").value.trim()) return;
-  toast("Nomi qidirilmoqda...", "magnifer-linear");
-  const n = await online(code);
-  if(n && !$("#f_name").value.trim()){ $("#f_name").value = n; toast("Topildi: " + n); }
-  else if(!n) toast("Nom topilmadi, bo'sh qoldirsangiz ham bo'ladi", "danger-triangle-bold");
-  $("#f_price")?.focus();
+  if(ex){
+    $("#f_name").value = ex.name; $("#f_price").value = ex.price || ""; $("#f_stock").value = ex.stock || ""; $("#f_unit").value = ex.unit;
+    if($("#f_cost")) $("#f_cost").value = ex.cost || "";
+    setImg(ex.image || ""); margin();
+    if(!ex.image) lookup(code).then(r => { if(r.image && !formImg && $("#modal")) setImg(r.image); });
+    return toast("Bu mahsulot bazada bor", "info-circle-bold");
+  }
+  const hadName = !!$("#f_name").value.trim();
+  if(!hadName) toast("Nomi qidirilmoqda...", "magnifer-linear");
+  const r = await lookup(code);
+  if(!$("#modal")) return;
+  if(r.name && !$("#f_name").value.trim()){ $("#f_name").value = r.name; toast("Topildi: " + r.name); }
+  else if(!r.name && !hadName) toast("Nom topilmadi, bo'sh qoldirsangiz ham bo'ladi", "danger-triangle-bold");
+  if(r.image && !formImg) setImg(r.image);
+  ($("#f_cost") && !$("#f_cost").value ? $("#f_cost") : $("#f_price"))?.focus();
 }
 function formScan(){
   if(scanner) return stopScan();
@@ -626,10 +669,11 @@ function formScan(){
 async function saveProduct(fromSell){
   const code = $("#f_code").value.trim();
   if(!code) return toast("Shtrix-kodni kiriting yoki skanerlang", "danger-triangle-bold");
-  const p = {shop_id:me.shop_id, barcode:code, name:$("#f_name").value.trim() || "Nomsiz " + code.slice(-4), price:Math.max(0, +$("#f_price").value || 0), stock:+$("#f_stock").value || 0, unit:$("#f_unit").value};
+  const p = {shop_id:me.shop_id, barcode:code, name:$("#f_name").value.trim() || "Nomsiz " + code.slice(-4), price:Math.max(0, +$("#f_price").value || 0), stock:+$("#f_stock").value || 0, unit:$("#f_unit").value, image:formImg || null};
+  if(me.role === "owner") p.cost = Math.max(0, +$("#f_cost").value || 0);   // xodimlar kelish narxini ko'rmaydi va o'zgartirmaydi
   const {error} = await sb.from("products").upsert(p, {onConflict:"shop_id,barcode"});
   if(error) return toast(errMsg(error), "danger-triangle-bold");
-  P.set(code, p); cacheP(); closeForm(); toast("Saqlandi");
+  P.set(code, {...(P.get(code) || {}), ...p, image:formImg}); cacheP(); closeForm(); toast("Saqlandi");
   if(fromSell) addCart(p); else if(tab === "products") drawProducts();
 }
 async function delProduct(code){
@@ -655,19 +699,21 @@ async function reportView(){
   const by = {}; rows.forEach(r => by[r.day] = r);
   const tot = days.map(d => +(by[ds(d)]?.total || 0)), mx = Math.max(...tot, 1);
   const td = by[ds(d0)] || {cnt:0, total:0};
-  const mo = rows.filter(r => r.day >= ds(m0)), moS = mo.reduce((a, r) => a + +r.total, 0), moC = mo.reduce((a, r) => a + +r.cnt, 0);
+  const mo = rows.filter(r => r.day >= ds(m0)), moS = mo.reduce((a, r) => a + +r.total, 0), moC = mo.reduce((a, r) => a + +r.cnt, 0), moP = mo.reduce((a, r) => a + +(r.profit || 0), 0);
+  const hasP = rows.length && "profit" in rows[0];
   const low = [...P.values()].filter(p => p.stock <= S.low).sort((a, b) => a.stock - b.stock).slice(0, 20);
   const from = tp === "today" ? d0 : tp === "week" ? days[0] : m0;
   let top = [];
   try{ const {data} = await T(sb.rpc("top_products", {p_from:from.toISOString(), p_to:new Date(+d0 + 864e5).toISOString()})); top = data || []; }catch(e){}
   const tm = Math.max(...top.map(t => +t.out_qty), 1);
   $("#rep").className = "";
-  $("#rep").innerHTML = `<div class="stat"><small>Bugungi savdo · ${td.cnt} ta chek</small><div class="big">${money(+td.total)}</div></div>
-  <div class="card"><div class="ico">${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Shu oy</b><small>${moC} ta chek</small></div><b class="right">${money(moS)}</b></div>
+  $("#rep").innerHTML = `<div class="stat"><small>Bugungi savdo · ${td.cnt} ta chek</small><div class="big">${money(+td.total)}</div>${hasP ? `<small style="display:block;margin-top:6px">Bugungi foyda: <b style="color:#fff">${money(+(td.profit || 0))}</b></small>` : ""}</div>
+  <div class="card"><div class="ico">${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Shu oy</b><small>${moC} ta chek${hasP ? " · foyda " + money(moP) : ""}</small></div><b class="right">${money(moS)}</b></div>
+  ${hasP ? `<small style="margin:-2px 0 8px 4px">Foyda faqat kelish narxi kiritilgan mahsulotlar bo'yicha hisoblanadi</small>` : ""}
   <h2>Oxirgi 7 kun</h2><div class="bars">${days.map((d, i) => `<div><i style="height:${Math.round(tot[i] / mx * 85)}%"></i><small>${d.getDate()}</small></div>`).join("")}</div>
   <h2>Eng ko'p sotilganlar</h2>
   <div class="chips">${[["today","Bugun"],["week","7 kun"],["month","Shu oy"]].map(([k, l]) => `<button class="chip ${tp===k?"on":""}" onclick="tp='${k}';reportView()">${l}</button>`).join("")}</div>
-  ${top.length ? top.slice(0, 15).map((t, i) => `<div class="card"><div class="rank">${i + 1}</div><div class="grow"><b>${esc(t.out_name)}</b><small>${+t.out_qty} sotildi · ${money(+t.out_revenue)}</small><div class="pbar"><i style="width:${Math.round(+t.out_qty / tm * 100)}%"></i></div></div></div>`).join("")
+  ${top.length ? top.slice(0, 15).map((t, i) => `<div class="card"><div class="rank">${i + 1}</div><div class="grow"><b>${esc(t.out_name)}</b><small>${+t.out_qty} sotildi · ${money(+t.out_revenue)}${+t.out_profit > 0 ? " · foyda " + money(+t.out_profit) : ""}</small><div class="pbar"><i style="width:${Math.round(+t.out_qty / tm * 100)}%"></i></div></div></div>`).join("")
     : `<div class="empty" style="padding:14px">Bu davrda sotuv yo'q</div>`}
   <h2>Tugayotgan mahsulotlar</h2>
   ${low.length ? low.map(p => `<div class="card"><div class="ico" style="background:var(--redl);color:var(--red)">${ic("danger-triangle-bold-duotone",24)}</div><div class="grow"><b>${esc(p.name)}</b></div><span class="tag low">${p.stock} ${esc(p.unit)}</span></div>`).join("")
@@ -735,7 +781,7 @@ function download(name, rows){
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 function exportCSV(){
-  download("mahsulotlar.csv", [["shtrix-kod","nomi","narxi","qoldiq","birlik"], ...[...P.values()].map(p => [p.barcode, p.name, p.price, p.stock, p.unit])]);
+  download("mahsulotlar.csv", [["shtrix-kod","nomi","narxi","qoldiq","birlik","kelish narxi"], ...[...P.values()].map(p => [p.barcode, p.name, p.price, p.stock, p.unit, p.cost || 0])]);
 }
 async function exportSales(){
   toast("Tayyorlanmoqda...", "download-minimalistic-bold");
@@ -755,7 +801,8 @@ const ALIAS = {
   name:["nomi","nom","nomlanishi","name","mahsulot","mahsulot nomi","наименование","название","товар"],
   price:["narxi","narx","price","sotuv narxi","цена"],
   stock:["qoldiq","qoldig'i","soni","miqdor","stock","qty","остаток","количество"],
-  unit:["birlik","o'lchov","unit","ед","ед.","единица"]
+  unit:["birlik","o'lchov","unit","ед","ед.","единица"],
+  cost:["kelish narxi","kelish","tannarx","kelish_narxi","cost","закупка","закупочная цена","себестоимость"]
 };
 const mapHeader = h => { const k = String(h).trim().toLowerCase().replace(/[’`ʻ‘]/g, "'"); for(const f in ALIAS) if(ALIAS[f].includes(k)) return f; return null; };
 function parseCSV(text){
@@ -790,7 +837,9 @@ async function importFile(inp){
     let name = String(r[idx.name] ?? "").trim();
     if(!name){ name = "Nomsiz " + code.slice(-4); noname++; }
     let unit = String(r[idx.unit] ?? "").trim().toLowerCase();
-    map.set(code, {barcode:code, name, price:Math.max(0, num(r[idx.price])), stock:num(r[idx.stock]), unit:unit || "dona"});
+    const row = {barcode:code, name, price:Math.max(0, num(r[idx.price])), stock:num(r[idx.stock]), unit:unit || "dona"};
+    if("cost" in idx){ const cv = String(r[idx.cost] ?? "").trim(); row.cost = cv === "" ? (P.get(code)?.cost || 0) : Math.max(0, num(cv)); }
+    map.set(code, row);
   }
   const list = [...map.values()];
   if(!list.length) return toast("Mahsulot topilmadi. Birinchi qatorda sarlavha bo'lishi kerak", "danger-triangle-bold");
