@@ -274,102 +274,60 @@ function normPhone(v){
   if(d.length === 9) d = "998" + d;
   return /^998\d{9}$/.test(d) ? d : "";
 }
-function phoneOf(e){
-  const m = String(e || "").match(/^(998)(\d{2})(\d{3})(\d{2})(\d{2})@/);
-  return m ? `+${m[1]} ${m[2]} ${m[3]} ${m[4]} ${m[5]}` : String(e || "");
-}
+const idOf = e => String(e || "").split("@")[0];
+function lastId(){ try{ return localStorage.getItem("lastid") || ""; }catch(e){ return ""; } }
+function setLastId(v){ try{ localStorage.setItem("lastid", v); }catch(e){} }
 function loginView(msg = ""){
   $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shop-2-bold-duotone", 38)}</div>
   <h1>Do'kon</h1><p class="mute">Savdo, ombor va hisobot bitta ilovada</p>
-  <label class="field">${ic("phone-bold-duotone")}<input id="em" type="tel" inputmode="tel" placeholder="Telefon raqam: 90 123 45 67" autocomplete="tel"></label>
-  <label class="field">${ic("lock-password-bold-duotone")}<input id="pw" type="password" placeholder="Parol (kamida 6 belgi)" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()"></label>
+  <label class="field">${ic("user-id-bold-duotone")}<input id="em" type="tel" inputmode="numeric" placeholder="ID raqamingiz" autocomplete="username" value="${esc(lastId())}"></label>
+  <label class="field">${ic("lock-password-bold-duotone")}<input id="pw" type="password" placeholder="Parol" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()"></label>
   <div class="err">${esc(msg)}</div>
-  <div class="row"><button class="btn b" onclick="login()">Kirish</button><button class="btn" onclick="TG.on ? tgView('signup') : signup()">Ro'yxatdan o'tish</button></div>
-  <button class="link" onclick="TG.on ? tgView('reset') : forgot()">Parolni unutdim</button>
+  <button class="btn b full" onclick="login()">Kirish</button>
+  <button class="btn full" style="margin-top:10px" onclick="signupView()">Ro'yxatdan o'tish</button>
+  <button class="link" onclick="forgot()">ID yoki parolni unutdim</button>
   <small style="text-align:center;margin-top:10px">v${VER}</small></div>`;
 }
 async function login(){
-  const ph = normPhone($("#em").value), password = $("#pw").value;
-  if(!ph) return setErr("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
+  const id = $("#em").value.replace(/\D/g, ""), password = $("#pw").value;
+  if(id.length < 6) return setErr("ID raqamni kiriting");
   if(!password) return setErr("Parolni kiriting");
-  const {error} = await sb.auth.signInWithPassword({email: ph + MAILDOM, password});
-  if(error) return setErr("Telefon yoki parol noto'g'ri");
+  const {error} = await sb.auth.signInWithPassword({email: id + MAILDOM, password});
+  if(error) return setErr(navigator.onLine ? "ID yoki parol noto'g'ri" : "Internet yo'q");
+  setLastId(id);
   init();
 }
+function signupView(msg = ""){
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shop-2-bold-duotone", 38)}</div>
+  <h1 style="font-size:26px">Ro'yxatdan o'tish</h1><p class="mute">Telefon raqamingizni yozing. Sizga ID raqam beriladi, ilovaga shu ID bilan kirasiz.</p>
+  <label class="field">${ic("phone-bold-duotone")}<input id="sph" type="tel" inputmode="tel" placeholder="Telefon: 90 123 45 67" autocomplete="tel"></label>
+  <label class="field">${ic("lock-password-bold-duotone")}<input id="pw" type="password" placeholder="Parol o'ylab toping (kamida 6 belgi)" autocomplete="new-password" onkeydown="if(event.key==='Enter')signup()"></label>
+  <div class="err">${esc(msg)}</div>
+  <button class="btn b full" id="sgb" onclick="signup()">ID raqam olish</button>
+  <button class="link" onclick="loginView()">Orqaga</button></div>`;
+}
+const newId = () => String(1000000 + Math.floor(Math.random() * 9000000));
 async function signup(){
-  const ph = normPhone($("#em").value), password = $("#pw").value;
-  if(!ph) return setErr("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
+  const phone = normPhone($("#sph").value), password = $("#pw").value;
+  if(!phone) return setErr("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
   if(password.length < 6) return setErr("Parol kamida 6 belgi bo'lsin");
-  const {data, error} = await sb.auth.signUp({email: ph + MAILDOM, password});
-  if(error) return setErr(/registered|exists/i.test(error.message) ? "Bu raqam ro'yxatdan o'tgan: «Kirish»ni bosing" : error.message);
-  if(data.session) init(); else setErr("Ro'yxatdan o'tdi. «Kirish»ni bosing.", true);
+  $("#sgb").disabled = true;
+  let data = null, error = null;
+  for(let i = 0; i < 5; i++){
+    ({data, error} = await sb.auth.signUp({email: newId() + MAILDOM, password, options:{data:{phone}}}));
+    if(!error || !/registered|exists/i.test(error.message)) break;   // ID band bo'lsa, boshqasini sinaymiz
+  }
+  if(error){ const b = $("#sgb"); if(b) b.disabled = false; return setErr(navigator.onLine ? "Ro'yxatdan o'tmadi: " + error.message : "Internet yo'q"); }
+  if(!data.session){ const b = $("#sgb"); if(b) b.disabled = false; return setErr("Ro'yxatdan o'tish yopiq: administrator bilan bog'laning: " + SUPPORT.phone); }
+  const id = idOf(data.user.email); setLastId(id);
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shield-check-bold-duotone", 38)}</div>
+  <h1 style="font-size:26px">Sizning ID raqamingiz</h1>
+  <div style="font-size:44px;font-weight:800;letter-spacing:3px;text-align:center;margin:10px 0;color:var(--b)">${esc(id)}</div>
+  <p class="mute" style="text-align:center">Shu raqamni yozib qo'ying yoki ekranni rasmga oling. Ilovaga <b>ID raqam + parol</b> bilan kirasiz.</p>
+  <button class="btn b full" style="margin-top:14px" onclick="init()">Davom etish</button></div>`;
 }
 function forgot(){
-  setErr("Parolni tiklash uchun qo'ng'iroq qiling: " + SUPPORT.phone, true);
-}
-/* ---------- TELEGRAM ORQALI TELEFON TASDIQLASH (6 xonali kod) ---------- */
-const TG = {on: true, fn: SUPABASE_URL + "/functions/v1/tg", bot: "https://t.me/CODEBOTTOBOT"};
-let tgs = {};
-async function tgApi(body){
-  const r = await fetch(TG.fn, {method:"POST", headers:{"Content-Type":"application/json", apikey:SUPABASE_KEY}, body:JSON.stringify(body)});
-  const j = await r.json().catch(() => ({}));
-  if(!r.ok) throw new Error(j.error || "Server xatosi");
-  return j;
-}
-function tgShell(inner){
-  $("#app").innerHTML = `<div class="login" id="tgw"><div class="logo">${ic("plain-bold-duotone", 38)}</div>${inner}</div>`;
-}
-function tgView(mode, msg = ""){
-  tgs = {mode, step:"phone", phone: tgs.phone || ""};
-  tgRender(msg);
-}
-function tgRender(msg = "", ok = false){
-  const title = tgs.mode === "reset" ? "Parolni tiklash" : "Ro'yxatdan o'tish";
-  const err = `<div class="err${ok ? " ok" : ""}">${esc(msg)}</div>`;
-  if(tgs.step === "phone"){
-    tgShell(`<h1 style="font-size:26px">${title}</h1>
-    <p class="mute">Telefon raqamingizni yozing. Tasdiqlash kodi Telegram'ga keladi (tekin).</p>
-    <label class="field">${ic("phone-bold-duotone")}<input id="tph" type="tel" inputmode="tel" placeholder="90 123 45 67" autocomplete="tel" value="${esc(tgs.phone)}" onkeydown="if(event.key==='Enter')tgSend()"></label>
-    ${err}<button class="btn b full" id="tgb" onclick="tgSend()">Kod yuborish</button>
-    <button class="link" onclick="tgs={};loginView()">Orqaga</button>`);
-  }else if(tgs.step === "code"){
-    const bot = tgs.needBot ? `<div class="card" style="margin-bottom:12px"><div class="grow"><b>Avval botni ulang</b><small>Telegram'da botni oching, «Start» va «Raqamni yuborish» ni bosing. Kod o'sha zahoti botga keladi. Bu faqat birinchi marta kerak.</small></div></div>
-      <a class="btn b full" href="${esc(TG.bot)}" target="_blank" rel="noopener" style="text-decoration:none;margin-bottom:12px">${ic("plain-bold-duotone",20)} Botni ochish</a>` : "";
-    tgShell(`<h1 style="font-size:26px">${title}</h1>
-    <p class="mute">${esc(phoneOf(tgs.phone + MAILDOM))}${tgs.needBot ? "" : "<br>Kod Telegram'ga yuborildi"}</p>${bot}
-    <label class="field">${ic("shield-check-bold-duotone")}<input id="tc" type="text" inputmode="numeric" maxlength="6" placeholder="6 xonali kod" autocomplete="one-time-code"></label>
-    <label class="field">${ic("lock-password-bold-duotone")}<input id="tp" type="password" placeholder="${tgs.mode === "reset" ? "Yangi parol" : "Parol o'ylab toping"} (kamida 6 belgi)" autocomplete="new-password" onkeydown="if(event.key==='Enter')tgFinish()"></label>
-    ${err}<button class="btn b full" id="tgb" onclick="tgFinish()">Tasdiqlash va kirish</button>
-    <button class="link" onclick="tgResend()">Kodni qayta yuborish</button>
-    <button class="link" onclick="tgView('${tgs.mode}')">Raqamni o'zgartirish</button>`);
-  }
-}
-async function tgSend(){
-  const ph = normPhone($("#tph").value);
-  if(!ph) return tgRender("Telefon raqamni to'g'ri kiriting (90 123 45 67)");
-  tgs.phone = ph; $("#tgb").disabled = true;
-  try{
-    const j = await tgApi({a:"send", phone:ph});
-    tgs.step = "code"; tgs.needBot = j.status === "need_bot"; tgs.phone = ph; tgRender();
-  }catch(e){ tgs.step = "phone"; tgRender(navigator.onLine ? e.message : "Internet yo'q"); }
-}
-async function tgResend(){
-  try{
-    const j = await tgApi({a:"send", phone:tgs.phone});
-    tgs.needBot = j.status === "need_bot"; tgRender(j.status === "sent" ? "Yangi kod yuborildi" : "", j.status === "sent");
-  }catch(e){ tgRender(e.message); }
-}
-async function tgFinish(){
-  const code = $("#tc").value.trim(), pw = $("#tp").value;
-  if(!/^\d{6}$/.test(code)) return tgRender("Kodni to'liq kiriting (6 ta raqam)");
-  if(pw.length < 6) return tgRender("Parol kamida 6 belgi bo'lsin");
-  $("#tgb").disabled = true;
-  try{
-    await tgApi({a:"verify", phone:tgs.phone, code, password:pw});
-    const {error} = await sb.auth.signInWithPassword({email: tgs.phone + MAILDOM, password: pw});
-    if(error) throw new Error("Kirishda xato. Bosh sahifadan «Kirish»ni bosing.");
-    tgs = {}; init();
-  }catch(e){ tgRender(e.message); }
+  setErr("ID yoki parolni tiklash uchun qo'ng'iroq qiling: " + SUPPORT.phone, true);
 }
 function recoveryView(msg = ""){
   $("#app").innerHTML = `<div class="login"><div class="logo">${ic("lock-password-bold-duotone", 38)}</div><h1 style="font-size:30px">Yangi parol</h1><p class="mute">Yangi parolni kiriting</p>
@@ -385,7 +343,7 @@ async function saveNewPw(){
   toast("Parol yangilandi"); init();
 }
 function onboardView(msg = ""){
-  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shop-2-bold-duotone", 38)}</div><h1 style="font-size:30px">Xush kelibsiz</h1><p class="mute">${esc(phoneOf(me?.email))}</p>
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("shop-2-bold-duotone", 38)}</div><h1 style="font-size:30px">Xush kelibsiz</h1><p class="mute">${esc("ID " + idOf(me?.email))}</p>
   <div class="chips"><button class="chip ${ob==="new"?"on":""}" onclick="ob='new';onboardView()">Yangi do'kon ochish</button><button class="chip ${ob==="join"?"on":""}" onclick="ob='join';onboardView()">Xodim sifatida qo'shilish</button></div>
   ${ob === "new" ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input id="sn" placeholder="Do'kon nomi" autocomplete="organization"></label>
     <label class="field">${ic("phone-bold-duotone",20)}<input id="sp" type="tel" inputmode="tel" placeholder="Telefon (ixtiyoriy)" autocomplete="tel"></label>
@@ -725,7 +683,7 @@ const arrow = ic("alt-arrow-right-linear", 20);
 function setView(){
   const owner = me.role === "owner", d = daysLeft();
   $("#view").innerHTML = head("Sozlamalar") + `
-  <div class="card"><div class="ico">${ic("user-rounded-bold-duotone",26)}</div><div class="grow"><b>${esc(phoneOf(me.email))}</b><small>${owner ? "Egasi" : "Admin"}</small></div></div>
+  <div class="card"><div class="ico">${ic("user-rounded-bold-duotone",26)}</div><div class="grow"><b>${esc("ID " + idOf(me.email))}</b><small>${owner ? "Egasi" : "Admin"}</small></div></div>
   <h2>Do'kon</h2>
   ${owner ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input value="${esc(shopName())}" placeholder="Do'kon nomi" onchange="saveShopName(this.value)"></label>`
     : `<div class="card"><div class="ico">${ic("shop-2-bold-duotone",24)}</div><div class="grow"><b>${esc(shopName())}</b></div></div>`}
@@ -870,7 +828,7 @@ async function adminsView(){
   const {data} = await sb.from("profiles").select("*").order("role");
   const L = {owner:"Egasi", admin:"Admin", pending:"Tasdiq kutmoqda"};
   $("#alist").innerHTML = (data || []).map(u => `<div class="card"><div class="ico">${ic(u.role==="owner"?"crown-bold-duotone":"user-rounded-bold-duotone",24)}</div>
-  <div class="grow"><b>${esc(phoneOf(u.email))}</b><small>${L[u.role] || ""}</small></div>
+  <div class="grow"><b>${esc("ID " + idOf(u.email))}</b><small>${L[u.role] || ""}</small></div>
   ${u.role === "owner" ? "" : u.role === "admin" ? `<button class="btn red sm" onclick="setRole('${u.id}','pending')">Bloklash</button>` : `<button class="btn b sm" onclick="setRole('${u.id}','admin')">Tasdiqlash</button>`}</div>`).join("");
 }
 async function setRole(id, role){
