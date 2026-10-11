@@ -1,0 +1,112 @@
+// Supabase Edge Function "tg": telefon raqamga Telegram bot orqali 6 xonali kod yuborish.
+// Secrets: TG_BOT_TOKEN, TG_BOT_USERNAME, TG_WEBHOOK_SECRET (SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY avtomatik)
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const BOT = Deno.env.get("TG_BOT_TOKEN");
+const BOTNAME = Deno.env.get("TG_BOT_USERNAME");
+const WH = Deno.env.get("TG_WEBHOOK_SECRET");
+const MAILDOM = "@dokon.uz";
+const CODE_TTL = 10 * 60 * 1000;
+const sb = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false, autoRefreshToken: false } });
+
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type, apikey, authorization, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
+const normPhone = (v) => { let d = String(v || "").replace(/\D/g, ""); if (d.length === 9) d = "998" + d; return /^998\d{9}$/.test(d) ? d : ""; };
+const iso = (msAgo) => new Date(Date.now() - msAgo).toISOString();
+const newCode = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
+
+async function tg(method, body) {
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${BOT}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return r.ok;
+  } catch (_) { return false; }
+}
+const codeText = (code) => `🔐 Do'kon ilovasi tasdiqlash kodi: ${code}\n\nKod 10 daqiqa amal qiladi. Uni hech kimga bermang.`;
+
+// Botga yozilgan xabarlar
+async function onUpdate(u) {
+  const m = u.message;
+  if (!m || !m.from || !m.chat || m.chat.type !== "private") return;
+  const chat = m.chat.id, from = m.from.id;
+
+  if (typeof m.text === "string" && m.text.startsWith("/start")) {
+    return tg("sendMessage", {
+      chat_id: chat,
+      text: "Salom! Telefon raqamingizni bog'lash uchun pastdagi tugmani bosing 👇\nShundan keyin tasdiqlash kodlari shu yerga keladi.",
+      reply_markup: { keyboard: [[{ text: "📱 Raqamni yuborish", request_contact: true }]], resize_keyboard: true, one_time_keyboard: true },
+    });
+  }
+
+  if (m.contact) {
+    if (m.contact.user_id !== from) return tg("sendMessage", { chat_id: chat, text: "Faqat o'zingizning raqamingizni yuboring (tugma orqali)." });
+    const phone = normPhone(m.contact.phone_number);
+    if (!phone || String(m.contact.phone_number).replace(/\D/g, "").length !== 12) {
+      return tg("sendMessage", { chat_id: chat, text: "Hozircha faqat O'zbekiston raqamlari (+998) qabul qilinadi.", reply_markup: { remove_keyboard: true } });
+    }
+    await sb.from("tg_links").upsert({ phone, tg_id: from });
+    // kutayotgan kod bo'lsa, darhol yuboramiz
+    const { data: rows } = await sb.from("phone_codes").select("code").eq("phone", phone).eq("used", false).gt("created_at", iso(CODE_TTL)).order("created_at", { ascending: false }).limit(1);
+    if (rows && rows.length) {
+      await tg("sendMessage", { chat_id: chat, text: codeText(rows[0].code), reply_markup: { remove_keyboard: true } });
+    } else {
+      await tg("sendMessage", { chat_id: chat, text: "✅ Raqam ulandi. Ilovaga qaytib, «Kod yuborish» ni bosing.", reply_markup: { remove_keyboard: true } });
+    }
+  }
+}
+
+async function api(b) {
+  const phone = normPhone(b.phone);
+  if (!phone) return json({ error: "Telefon raqamni to'g'ri kiriting (90 123 45 67)" }, 400);
+
+  if (b.a === "send") {
+    await sb.from("phone_codes").delete().lt("created_at", iso(24 * 3600 * 1000));
+    const { data: recent } = await sb.from("phone_codes").select("created_at").eq("phone", phone).gt("created_at", iso(3600 * 1000)).order("created_at", { ascending: false });
+    if (recent && recent.length >= 5) return json({ error: "Juda ko'p urinish. Bir soatdan keyin qayta urinib ko'ring." }, 429);
+    if (recent && recent.length && Date.now() - new Date(recent[0].created_at).getTime() < 60000) return json({ error: "Biroz kuting: kodni 1 daqiqada bir marta so'rash mumkin." }, 429);
+    const code = newCode();
+    const { error } = await sb.from("phone_codes").insert({ phone, code });
+    if (error) return json({ error: "Server xatosi" }, 500);
+    const { data: link } = await sb.from("tg_links").select("tg_id").eq("phone", phone).maybeSingle();
+    if (link && (await tg("sendMessage", { chat_id: link.tg_id, text: codeText(code) }))) return json({ status: "sent" });
+    return json({ status: "need_bot", link: `https://t.me/${BOTNAME}` });
+  }
+
+  if (b.a === "verify") {
+    const code = String(b.code || "").trim(), password = String(b.password || "");
+    if (!/^\d{6}$/.test(code)) return json({ error: "Kod 6 ta raqamdan iborat" }, 400);
+    if (password.length < 6) return json({ error: "Parol kamida 6 belgi bo'lsin" }, 400);
+    const { data: rows } = await sb.from("phone_codes").select("*").eq("phone", phone).eq("used", false).gt("created_at", iso(CODE_TTL)).order("created_at", { ascending: false }).limit(1);
+    const row = rows && rows[0];
+    if (!row) return json({ error: "Kod eskirgan. Yangi kod so'rang." }, 400);
+    if (row.attempts >= 5) return json({ error: "Juda ko'p xato urinish. Yangi kod so'rang." }, 429);
+    if (row.code !== code) {
+      await sb.from("phone_codes").update({ attempts: row.attempts + 1 }).eq("id", row.id);
+      return json({ error: "Kod noto'g'ri" }, 400);
+    }
+    const { data: claimed } = await sb.from("phone_codes").update({ used: true }).eq("id", row.id).eq("used", false).select("id");
+    if (!claimed || !claimed.length) return json({ error: "Kod ishlatilgan. Yangi kod so'rang." }, 400);
+    const email = phone + MAILDOM;
+    const { data: uid } = await sb.rpc("auth_uid_by_email", { p_email: email });
+    const res = uid
+      ? await sb.auth.admin.updateUserById(uid, { password, email_confirm: true })
+      : await sb.auth.admin.createUser({ email, password, email_confirm: true });
+    if (res.error) {
+      await sb.from("phone_codes").update({ used: false }).eq("id", row.id);
+      return json({ error: "Akkaunt yaratilmadi: " + res.error.message }, 500);
+    }
+    return json({ ok: true, phone, existed: !!uid });
+  }
+  return json({ error: "Noma'lum so'rov" }, 400);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method !== "POST") return json({ error: "POST kerak" }, 405);
+  const hook = req.headers.get("x-telegram-bot-api-secret-token");
+  if (hook !== null) {
+    if (hook !== WH) return new Response("forbidden", { status: 401 });
+    try { await onUpdate(await req.json()); } catch (e) { console.error(e); }
+    return new Response("ok");
+  }
+  try { return await api(await req.json()); } catch (e) { console.error(e); return json({ error: "Server xatosi" }, 500); }
+});
