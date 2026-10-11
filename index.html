@@ -122,7 +122,18 @@ nav button.on{color:var(--b)}
 // ===== SOZLAMA (faqat shu 3 joyni o'zgartiring) =====
 const SUPABASE_URL = "https://qdokkscmadhzndpbqmwt.supabase.co";
 const SUPABASE_KEY = "sb_publishable_PGnP21p8l63SVIrCTFQ6ug_o6M7ND6S";
-const SUPPORT = {phone:"+998 20 001 25 60", price:"49 000 so'm / 30 kun"}; // obuna to'lovi va yordam
+const SUPPORT = {phone:"+998 20 001 25 60", price:"49 000 so'm / 30 kun", card:"", cardName:""}; // card: to'lov qabul qilinadigan karta raqami (masalan "8600 1234 5678 9012"), cardName: egasining ismi
+const payHint = () => SUPPORT.card
+  ? `Kartaga o'tkazing: ${SUPPORT.card}${SUPPORT.cardName ? " (" + SUPPORT.cardName + ")" : ""}. Izohga ID ${me ? idOf(me.email) : ""} yozing, keyin «To'lov qildim» tugmasini bosing`
+  : "To'lov uchun qo'ng'iroq qiling";
+const paidBtn = (st = "") => me && me.role === "owner" && SUPPORT.card ? `<button class="btn b" style="white-space:nowrap;${st}" onclick="paid()">To'lov qildim</button>` : "";
+async function paid(){
+  try{
+    const {error} = await sb.functions.invoke("paynotify");
+    if(error){ let m = "Yuborilmadi"; try{ const j = await error.context.json(); if(j && j.error) m = j.error; }catch(_){} return toast(m, "danger-triangle-bold"); }
+    toast("Yuborildi. Tez orada tasdiqlanadi");
+  }catch(e){ toast("Internet yo'q: qo'ng'iroq qiling " + SUPPORT.phone, "danger-triangle-bold"); }
+}
 // ====================================================
 const VER = "1.0.0";
 let RECOVERY = /type=recovery/.test(location.hash); // parolni tiklash havolasidan kelgan
@@ -295,6 +306,7 @@ function loginView(msg = ""){
   <button class="btn b full" onclick="login()">Kirish</button>
   <button class="btn full" style="margin-top:10px" onclick="signupView()">Ro'yxatdan o'tish</button>
   <button class="link" onclick="forgot()">ID yoki parolni unutdim</button>
+  <a class="link" href="maxfiylik.html" target="_blank" style="display:block;font-weight:600;font-size:13px;opacity:.7;text-decoration:none">Maxfiylik va foydalanish shartlari</a>
   <small style="text-align:center;margin-top:10px">v${VER}</small></div>`;
 }
 async function login(){
@@ -402,8 +414,8 @@ function show(t){
 function banner(){
   if(!SH) return "";
   const d = daysLeft();
-  if(d < 0) return `<div class="banner bad">${ic("danger-triangle-bold",24)}<div>Obuna muddati tugagan: sotuv to'xtatildi<small>To'lov va uzaytirish (${esc(SUPPORT.price)}): ${esc(SUPPORT.phone)}</small></div></div>`;
-  if(d <= 5) return `<div class="banner">${ic("clock-circle-bold",24)}<div>Obuna ${d === 0 ? "bugun" : d + " kundan keyin"} tugaydi<small>Uzaytirish (${esc(SUPPORT.price)}): ${esc(SUPPORT.phone)}</small></div></div>`;
+  if(d < 0) return `<div class="banner bad">${ic("danger-triangle-bold",24)}<div>Obuna muddati tugagan: sotuv to'xtatildi<small>${esc(SUPPORT.price)}. ${esc(payHint())}. Yordam: ${esc(SUPPORT.phone)}</small></div>${paidBtn()}</div>`;
+  if(d <= 5) return `<div class="banner">${ic("clock-circle-bold",24)}<div>Obuna ${d === 0 ? "bugun" : d + " kundan keyin"} tugaydi<small>${esc(SUPPORT.price)}. ${esc(payHint())}. Yordam: ${esc(SUPPORT.phone)}</small></div>${paidBtn()}</div>`;
   return "";
 }
 function head(title){
@@ -781,7 +793,8 @@ function setView(){
   <h2>Do'kon</h2>
   ${owner ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input value="${esc(shopName())}" placeholder="Do'kon nomi" onchange="saveShopName(this.value)"></label>`
     : `<div class="card"><div class="ico">${ic("shop-2-bold-duotone",24)}</div><div class="grow"><b>${esc(shopName())}</b></div></div>`}
-  ${SH ? `<div class="card"><div class="ico" ${d < 0 ? 'style="background:var(--redl);color:var(--red)"' : ""}>${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Obuna: ${fmtD(SH.paid_until)} gacha</b><small>${d >= 0 ? d + " kun qoldi" : "muddati tugagan"} · Aloqa: ${esc(SUPPORT.phone)}</small></div></div>` : ""}
+  ${SH ? `<div class="card"><div class="ico" ${d < 0 ? 'style="background:var(--redl);color:var(--red)"' : ""}>${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Obuna: ${fmtD(SH.paid_until)} gacha</b><small>${d >= 0 ? d + " kun qoldi" : "muddati tugagan"} · Aloqa: ${esc(SUPPORT.phone)}</small></div></div>
+  <div class="card"><div class="ico">${ic("wallet-money-bold-duotone",24)}</div><div class="grow"><b>Obunani to'lash: ${esc(SUPPORT.price)}</b><small>${esc(payHint())}</small></div>${paidBtn()}</div>` : ""}
   <label class="field">${ic("danger-triangle-bold-duotone",20)}<input type="number" inputmode="numeric" value="${S.low}" placeholder="Kam qoldiq chegarasi" onchange="S.low=Math.max(0,+this.value||0);saveS();toast('Saqlandi')"></label>
   <small style="margin:-4px 0 6px 4px">Shu sondan kam qolganda "tugayotgan" deb ko'rsatiladi</small>
   <h2>Skaner</h2>
