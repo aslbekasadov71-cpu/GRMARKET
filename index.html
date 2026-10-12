@@ -122,7 +122,7 @@ nav button.on{color:var(--b)}
 // ===== SOZLAMA (faqat shu 3 joyni o'zgartiring) =====
 const SUPABASE_URL = "https://qdokkscmadhzndpbqmwt.supabase.co";
 const SUPABASE_KEY = "sb_publishable_PGnP21p8l63SVIrCTFQ6ug_o6M7ND6S";
-const SUPPORT = {phone:"+998 20 001 25 60", price:"49 000 so'm / 30 kun", card:"9860 1201 3619 1216", cardName:"A.A"}; // card: to'lov qabul qilinadigan karta raqami (masalan "8600 1234 5678 9012"), cardName: egasining ismi
+const SUPPORT = {phone:"+998 20 001 25 60", price:"49 000 so'm / 30 kun", card:"", cardName:""}; // card: to'lov qabul qilinadigan karta raqami (masalan "8600 1234 5678 9012"), cardName: egasining ismi
 const payHint = () => SUPPORT.card
   ? `Kartaga o'tkazing: ${SUPPORT.card}${SUPPORT.cardName ? " (" + SUPPORT.cardName + ")" : ""}. Izohga ID ${me ? idOf(me.email) : ""} yozing, keyin «To'lash» tugmasini bosing`
   : "To'lov uchun qo'ng'iroq qiling";
@@ -204,7 +204,8 @@ const fq = q => String(Math.round(q * 1000) / 1000);
 const blank = () => ({barcode:"", name:"", price:0, cost:0, stock:0, unit:"dona", image:"", isNew:true});
 const ready = () => !!me && (me.role === "owner" || me.role === "admin");
 const shopName = () => (SH && SH.name) || S.shop;
-const subOK = () => !SH || SH.paid_until >= today();
+const SUBS_ON = false;   // obuna tizimi: to'lov (merchant API) tayyor bo'lguncha o'chiq. true qilsangiz banner, sozlama va cheklov qaytadi
+const subOK = () => !SUBS_ON || !SH || SH.paid_until >= today();
 const daysLeft = () => SH ? Math.round((new Date(SH.paid_until + "T00:00:00") - new Date(today() + "T00:00:00")) / 864e5) : 99;
 const errMsg = e => /row-level security/i.test(e?.message || "") ? "Obuna muddati tugagan yoki ruxsat yo'q" : (e?.message || "Xato");
 const setErr = (m, ok) => { const e = $(".err"); if(e){ e.textContent = m; e.className = "err" + (ok ? " ok" : ""); } };
@@ -467,7 +468,7 @@ function show(t){
   updBadge();
 }
 function banner(){
-  if(!SH) return "";
+  if(!SH || !SUBS_ON) return "";
   const d = daysLeft();
   if(d < 0) return `<div class="banner bad">${ic("danger-triangle-bold",24)}<div>Obuna muddati tugagan: sotuv to'xtatildi<small>${esc(SUPPORT.price)}. ${esc(payHint())}. Yordam: ${esc(SUPPORT.phone)}</small></div>${paidBtn()}</div>`;
   if(d <= 5) return `<div class="banner">${ic("clock-circle-bold",24)}<div>Obuna ${d === 0 ? "bugun" : d + " kundan keyin"} tugaydi<small>${esc(SUPPORT.price)}. ${esc(payHint())}. Yordam: ${esc(SUPPORT.phone)}</small></div>${paidBtn()}</div>`;
@@ -744,7 +745,27 @@ let formImg = "";
 function setImg(u){
   if(u !== undefined) formImg = u || "";
   const b = $("#fimg"); if(!b) return;
-  b.innerHTML = formImg ? `<div class="fimg">${thumb({image:formImg}, 28)}<small style="flex:1">Rasm avtomatik topildi</small><button class="btn sm" onclick="setImg('')">Olib tashlash</button></div>` : "";
+  b.innerHTML = `<div class="fimg">${formImg ? thumb({image:formImg}, 28) : `<div class="ico">${ic("camera-bold-duotone",28)}</div>`}<small style="flex:1">${formImg ? "Mahsulot rasmi" : "Rasm yo'q"}</small>
+  <label class="btn sm" style="cursor:pointer">${formImg ? "Almashtirish" : "Rasm tanlash"}<input type="file" accept="image/*" hidden onchange="pickImg(this)"></label>${formImg ? `<button class="btn sm" onclick="setImg('')">Olib tashlash</button>` : ""}</div>
+  <button class="link" style="padding:2px 0 10px;text-align:left" onclick="googleImg()">Google'dan rasm qidirish</button>`;
+}
+function googleImg(){
+  const q = ($("#f_name")?.value || "").trim() || ($("#f_code")?.value || "").trim();
+  if(!q) return toast("Avval nomini yozing", "danger-triangle-bold");
+  window.open("https://www.google.com/search?tbm=isch&q=" + encodeURIComponent(q), "_blank");
+  toast("Rasmni bosib ushlab «Saqlash» qiling, so'ng bu yerda «Rasm tanlash»");
+}
+function pickImg(inp){
+  const f = inp.files && inp.files[0]; if(!f) return;
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => {
+    const S = 220, k = Math.min(1, S / Math.max(im.width, im.height)), c = document.createElement("canvas");
+    c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url); setImg(c.toDataURL("image/jpeg", .72));
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); toast("Rasm o'qilmadi", "danger-triangle-bold"); };
+  im.src = url;
 }
 function margin(){
   const m = $("#marg"); if(!m) return;
@@ -848,7 +869,7 @@ function setView(){
   <h2>Do'kon</h2>
   ${owner ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input value="${esc(shopName())}" placeholder="Do'kon nomi" onchange="saveShopName(this.value)"></label>`
     : `<div class="card"><div class="ico">${ic("shop-2-bold-duotone",24)}</div><div class="grow"><b>${esc(shopName())}</b></div></div>`}
-  ${SH ? `<div class="card"><div class="ico" ${d < 0 ? 'style="background:var(--redl);color:var(--red)"' : ""}>${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Obuna: ${fmtD(SH.paid_until)} gacha</b><small>${d >= 0 ? d + " kun qoldi" : "muddati tugagan"} · Aloqa: ${esc(SUPPORT.phone)}</small></div></div>
+  ${SH && SUBS_ON ? `<div class="card"><div class="ico" ${d < 0 ? 'style="background:var(--redl);color:var(--red)"' : ""}>${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Obuna: ${fmtD(SH.paid_until)} gacha</b><small>${d >= 0 ? d + " kun qoldi" : "muddati tugagan"} · Aloqa: ${esc(SUPPORT.phone)}</small></div></div>
   <div class="card"><div class="ico">${ic("wallet-money-bold-duotone",24)}</div><div class="grow"><b>Obunani to'lash: ${esc(SUPPORT.price)}</b><small>${esc(payHint())}</small></div>${paidBtn()}</div>` : ""}
   <label class="field">${ic("danger-triangle-bold-duotone",20)}<input type="number" inputmode="numeric" value="${S.low}" placeholder="Kam qoldiq chegarasi" onchange="S.low=Math.max(0,+this.value||0);saveS();toast('Saqlandi')"></label>
   <small style="margin:-4px 0 6px 4px">Shu sondan kam qolganda "tugayotgan" deb ko'rsatiladi</small>
