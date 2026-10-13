@@ -59,7 +59,7 @@ jobs:
         working-directory: app
         run: |
           M=android/app/src/main/AndroidManifest.xml
-          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <application#' $M
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-feature android:name="android.hardware.microphone" android:required="false" />\n    <application#' $M
           npx --yes @capacitor/assets generate --android \
             --iconBackgroundColor '#ffffff' --splashBackgroundColor '#f2f4f9' || echo "Ikonka generatsiyasi o'tkazib yuborildi"
           G=android/app/build.gradle
