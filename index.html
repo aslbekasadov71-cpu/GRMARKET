@@ -104,6 +104,24 @@ nav button.on{color:var(--b)}
 .codebox{font:800 30px/1 Manrope,sans-serif;letter-spacing:.14em;text-align:center;background:var(--card);border-radius:18px;padding:20px;margin-bottom:8px;user-select:all}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 #rcpt{display:none}
+.dtile{flex:1;background:var(--card);border-radius:18px;padding:12px 14px}
+.dtile b{display:block;font-size:17px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtile.in b{color:#16a34a}.dtile.out b{color:var(--red)}
+.seg{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:10px}
+.seg button{flex:1;font:inherit;font-size:14px;font-weight:700;border:0;background:none;color:var(--mute);padding:10px 4px;border-radius:10px;cursor:pointer}
+.seg button.on{background:var(--b);color:#fff}.seg.out button.on{background:var(--red)}
+.dblk{border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
+.dblk:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.heard{background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:14px;font-style:italic}
+.heard small{font-style:normal;margin-bottom:2px}
+.amt{margin:-6px 0 10px 4px;font-weight:700;color:var(--b)}
+.microw{display:flex;align-items:center;gap:14px;-webkit-user-select:none;user-select:none}
+.microw b{display:block}
+.mic{width:64px;height:64px;border-radius:50%;border:0;background:var(--b);color:#fff;display:grid;place-items:center;flex:none;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .15s,background .15s}
+.mic.rec{background:var(--red);transform:scale(1.12);animation:pulse 1.1s infinite}
+.mic.busy{opacity:.55}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 6px rgba(240,68,56,.22)}50%{box-shadow:0 0 0 16px rgba(240,68,56,.06)}}
+.ini{font-weight:800;font-size:18px}
 .rank{width:28px;height:28px;border-radius:9px;background:var(--bl);color:var(--b);display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
 .pbar{height:6px;border-radius:99px;background:var(--bl);margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--b);border-radius:99px}
 .line{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -452,19 +470,19 @@ async function leaveShop(){ await sb.rpc("leave_shop"); ob = "join"; init(); }
 async function logout(){
   await stopScan(); $("#slab")?.remove();
   try{ await T(sb.auth.signOut(), 4000); }catch(e){}
-  try{ localStorage.removeItem("dme"); localStorage.removeItem("dp"); }catch(e){}
-  me = null; SH = null; cart = []; P = new Map(); loginView();
+  try{ localStorage.removeItem("dme"); localStorage.removeItem("dp"); localStorage.removeItem("dd"); }catch(e){}
+  me = null; SH = null; cart = []; P = new Map(); D = []; loginView();
 }
 
 /* ---------- ASOSIY ---------- */
 function show(t){
   stopScan(); $("#slab")?.remove(); tab = t;
   const hl = t === "admins" ? "set" : t;
-  const tabs = [["sell","cart-large-2-bold-duotone","Sotuv"], ["rec","bill-list-bold-duotone","Cheklar"], ["products","box-bold-duotone","Mahsulot"]];
+  const tabs = [["sell","cart-large-2-bold-duotone","Sotuv"], ["rec","bill-list-bold-duotone","Cheklar"], ["products","box-bold-duotone","Mahsulot"], ["debts","notebook-bold-duotone","Qarzlar"]];
   if(me.role === "owner") tabs.push(["report","chart-2-bold-duotone","Hisobot"]);
   tabs.push(["set","settings-bold-duotone","Sozlama"]);
   $("#app").innerHTML = `<div id="view"></div><nav>${tabs.map(([k,i,l]) => `<button class="${k===hl?"on":""}" onclick="show('${k}')">${ic(i,26)}${l}</button>`).join("")}</nav>`;
-  ({sell:sellView, rec:receiptsView, products:productsView, report:reportView, set:setView, admins:adminsView})[t]();
+  ({sell:sellView, rec:receiptsView, products:productsView, debts:debtsView, report:reportView, set:setView, admins:adminsView})[t]();
   updBadge();
 }
 function banner(){
@@ -493,6 +511,7 @@ async function startScan(box, rid, cb){
   .catch(() => { toast("Kameraga ruxsat bering", "danger-triangle-bold"); scanner = null; $("#" + box)?.classList.remove("on"); });
 }
 async function stopScan(){
+  recCancel();
   if(scanner){ try{ await scanner.stop(); }catch(e){} scanner = null; }
   document.querySelectorAll(".scan").forEach(e => e.classList.remove("on"));
 }
@@ -1020,6 +1039,227 @@ async function adminsView(){
 async function setRole(id, role){
   const {error} = await sb.rpc("set_member_role", {p_user:id, p_role:role});
   error ? toast(error.message, "danger-triangle-bold") : adminsView();
+}
+
+/* ---------- QARZLAR (nasiya daftari) + OVOZLI KIRITISH ---------- */
+// dir: "in" = u menga qarzdor (mijoz), "out" = men unga qarzdorman (optomchi). kind: "debt" = qarz, "pay" = to'lov
+let D = [], df = "in", dq = "", dShown = [], dItems = [], dHeard = "", dCur = null;
+const nkey = s => String(s || "").trim().toLowerCase().replace(/[ʻʼ‘’`´]/g, "'").replace(/\s+/g, " ");
+const KL = {in:{debt:"Nasiya berdim", pay:"Qaytardi"}, out:{debt:"Qarz oldim", pay:"Qaytardim"}};
+const digits = v => Math.round(+String(v ?? "").replace(/[^\d]/g, "") || 0);
+async function loadD(){
+  try{
+    const {data, error} = await T(sb.from("debts").select("*").order("created_at", {ascending:false}).limit(10000), 12000);
+    if(error) throw error;
+    D = data || []; try{ localStorage.setItem("dd", JSON.stringify(D)); }catch(e){}
+    return "";
+  }catch(e){
+    if(!D.length) try{ D = JSON.parse(localStorage.getItem("dd") || "[]"); }catch(x){}
+    return /relation|does not exist|schema cache/i.test(e?.message || "") ? "Qarzlar jadvali hali yaratilmagan: Supabase'da qarzlar.sql ni ishga tushiring" : "Internet yo'q: oxirgi saqlangan ma'lumot ko'rsatildi";
+  }
+}
+function people(){
+  const m = new Map();
+  for(const r of D){
+    const k = r.dir + "|" + nkey(r.person);
+    let p = m.get(k);
+    if(!p){ p = {name:r.person, dir:r.dir, phone:"", bal:0, last:r.created_at, rows:[]}; m.set(k, p); }
+    p.bal += (r.kind === "pay" ? -1 : 1) * +r.amount;
+    if(!p.phone && r.phone) p.phone = r.phone;
+    if(r.created_at > p.last) p.last = r.created_at;
+    p.rows.push(r);
+  }
+  return [...m.values()];
+}
+async function debtsView(){
+  $("#view").innerHTML = head("Qarzlar") + `<div id="dsum"></div><div class="chips" id="dchips"></div>
+  <div class="row"><label class="field" style="margin:0">${ic("magnifer-linear",20)}<input id="dq" placeholder="Ism bo'yicha qidirish" value="${esc(dq)}" oninput="dq=this.value;drawDebts()"></label>
+  <button class="btn b auto" onclick="debtForm([{dir:df==='out'?'out':'in'}])">${ic("add-circle-bold",26)}</button></div>
+  <div id="dlist" class="empty" style="margin-top:12px">Yuklanmoqda...</div>`;
+  micBar();
+  if(!D.length) try{ D = JSON.parse(localStorage.getItem("dd") || "[]"); }catch(e){}
+  if(D.length) drawDebts();
+  const err = await loadD();
+  if(tab === "debts") drawDebts(err);
+}
+function drawDebts(err = ""){
+  if(!$("#dlist")) return;
+  const all = people(), open = p => Math.round(p.bal) !== 0;
+  const tot = d => all.filter(p => p.dir === d && p.bal > 0).reduce((a, p) => a + p.bal, 0);
+  $("#dsum").innerHTML = `<div class="row" style="margin-bottom:12px;align-items:stretch"><div class="dtile in"><small>Menga qarzdor</small><b>${money(tot("in"))}</b></div><div class="dtile out"><small>Mening qarzim</small><b>${money(tot("out"))}</b></div></div>`;
+  const cnt = {in:all.filter(p => p.dir === "in" && open(p)).length, out:all.filter(p => p.dir === "out" && open(p)).length, done:all.filter(p => !open(p)).length};
+  $("#dchips").innerHTML = [["in","Menga qarzdorlar"],["out","Mening qarzlarim"],["done","Yopilgan"]].map(([k, l]) => `<button class="chip ${df===k?"on":""}" onclick="df='${k}';drawDebts()">${l} (${cnt[k]})</button>`).join("");
+  const q = nkey(dq);
+  dShown = all.filter(p => (df === "done" ? !open(p) : p.dir === df && open(p)) && nkey(p.name).includes(q))
+    .sort((a, b) => df === "done" ? (b.last > a.last ? 1 : -1) : Math.abs(b.bal) - Math.abs(a.bal));
+  const L = $("#dlist"); L.className = "";
+  L.innerHTML = (err ? `<small style="margin-bottom:8px">${esc(err)}</small>` : "") + (dShown.length ? dShown.map((p, i) => `<div class="card" onclick="openDebt(${i})">
+    <div class="ico" style="${p.dir === "out" ? "background:var(--redl);color:var(--red)" : ""}"><span class="ini">${esc((p.name.trim()[0] || "?").toUpperCase())}</span></div>
+    <div class="grow"><b>${esc(p.name)}</b><small>${p.phone ? esc(p.phone) + " · " : ""}${fmtT(p.last)}</small></div>
+    <div class="right"><b style="color:${!open(p) ? "var(--mute)" : p.dir === "out" ? "var(--red)" : "#16a34a"}">${open(p) ? money(Math.abs(p.bal)) : "Yopilgan"}</b>${p.bal < 0 ? "<small>ortiqcha to'langan</small>" : ""}</div></div>`).join("")
+    : `<div class="empty">${ic("notebook-bold-duotone",54)}<div>${q ? "Topilmadi" : df === "done" ? "Yopilgan qarz yo'q" : "Qarz yo'q"}</div><small>Mikrofonni bosib turib ayting yoki + tugmasini bosing</small></div>`);
+}
+function openDebt(i){
+  const p = dShown[i]; if(!p) return; dCur = p; closeForm();
+  const b = Math.round(p.bal), ph = String(p.phone || "").replace(/[^\d+]/g, "");
+  const sms = `Assalomu alaykum! ${shopName()} do'konidagi qarzingiz: ${money(b)}. Rahmat!`;
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div><small>${p.dir === "in" ? "Menga qarzdor" : "Men qarzdorman"}${p.phone ? " · " + esc(p.phone) : ""}</small>
+  <h1 style="font-size:24px">${esc(p.name)}</h1>
+  <div class="stat" style="margin-top:12px;${p.dir === "out" ? "background:var(--red)" : ""}"><small>${b === 0 ? "Qarz yopilgan" : b < 0 ? "Ortiqcha to'langan" : "Qolgan qarz"}</small><div class="big">${money(Math.abs(b))}</div></div>
+  <div class="row" style="margin-bottom:10px"><button class="btn" onclick="debtForm([{person:dCur.name,phone:dCur.phone,dir:dCur.dir,kind:'debt'}])">${ic("add-circle-bold",20)} ${p.dir === "in" ? "Nasiya" : "Qarz"}</button>
+  <button class="btn b" onclick="debtForm([{person:dCur.name,phone:dCur.phone,dir:dCur.dir,kind:'pay',amount:Math.max(0,Math.round(dCur.bal))||''}])">${ic("wallet-money-bold",20)} To'lov</button></div>
+  ${ph ? `<div class="row" style="margin-bottom:6px"><a class="btn" style="text-decoration:none" href="tel:${esc(ph)}">${ic("phone-bold",20)} Qo'ng'iroq</a>
+  ${p.dir === "in" && b > 0 ? `<a class="btn" style="text-decoration:none" href="sms:${esc(ph)}?&body=${encodeURIComponent(sms)}">${ic("chat-round-dots-bold",20)} Eslatma SMS</a>` : ""}</div>` : ""}
+  <h2>Tarix</h2>
+  ${p.rows.map(r => `<div class="line"><span>${KL[r.dir][r.kind]}<small>${fmtT(r.created_at)}${r.note ? " · " + esc(r.note) : ""}</small></span>
+    <span style="display:flex;align-items:center;gap:6px"><b style="color:${r.kind === "pay" ? "#16a34a" : "var(--ink)"}">${r.kind === "pay" ? "−" : "+"}${money(r.amount)}</b>
+    ${me.role === "owner" ? `<button class="btn red sm" onclick="delDebt('${esc(r.id)}')">${ic("trash-bin-trash-bold",18)}</button>` : ""}</span></div>`).join("")}
+  <button class="btn full" style="margin-top:16px" onclick="closeForm()">Yopish</button></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m);
+}
+async function delDebt(id){
+  if(!confirm("Bu yozuv o'chirilsinmi?")) return;
+  const {error} = await T(sb.from("debts").delete().eq("id", id), 8000).catch(e => ({error:e}));
+  if(error) return toast(errMsg(error), "danger-triangle-bold");
+  closeForm(); toast("O'chirildi"); await loadD(); drawDebts();
+}
+
+/* Tasdiqlash oynasi: ovozdan kelgan yoki qo'lda kiritiladigan yozuvlar */
+function debtForm(items, heard = ""){
+  dHeard = heard;
+  dItems = (items.length ? items : [{}]).map(x => ({person:String(x.person || ""), phone:String(x.phone || ""), dir:x.dir === "out" ? "out" : "in",
+    kind:x.kind === "pay" ? "pay" : "debt", amount:digits(x.amount) || "", note:String(x.note || "")}));
+  closeForm();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div id="dform"></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m); drawDF();
+  if(!heard && !dItems[0].person) setTimeout(() => $("#dp0")?.focus(), 250);
+}
+function drawDF(){
+  const names = [...new Set(D.map(d => d.person))];
+  $("#dform").innerHTML = `<h1 style="margin-bottom:12px;font-size:22px">${dHeard ? "Tekshiring va saqlang" : "Yangi yozuv"}</h1>
+  ${dHeard ? `<div class="heard"><small>${ic("microphone-3-bold",14)} Siz aytdingiz:</small>«${esc(dHeard)}»</div>` : ""}
+  <datalist id="dnames">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+  ${dItems.map((x, i) => `<div class="dblk">
+    ${dItems.length > 1 ? `<h2 style="margin-top:0">${i + 1}-yozuv <button class="btn red sm" onclick="dItems.splice(${i},1);drawDF()">${ic("trash-bin-trash-bold",16)}</button></h2>` : ""}
+    <div class="seg ${x.dir}"><button class="${x.dir === "in" ? "on" : ""}" onclick="dSet(${i},'dir','in')">Menga qarzdor</button><button class="${x.dir === "out" ? "on" : ""}" onclick="dSet(${i},'dir','out')">Men qarzdorman</button></div>
+    <div class="seg"><button class="${x.kind === "debt" ? "on" : ""}" onclick="dSet(${i},'kind','debt')">${KL[x.dir].debt}</button><button class="${x.kind === "pay" ? "on" : ""}" onclick="dSet(${i},'kind','pay')">${KL[x.dir].pay}</button></div>
+    <label class="field">${ic("user-bold-duotone",20)}<input id="dp${i}" list="dnames" placeholder="Ism" autocomplete="off" value="${esc(x.person)}" oninput="dItems[${i}].person=this.value"></label>
+    <label class="field">${ic("wallet-money-bold-duotone",20)}<input inputmode="numeric" placeholder="Summa" value="${x.amount ? digits(x.amount).toLocaleString("ru-RU") : ""}" oninput="dItems[${i}].amount=digits(this.value);$('#da${i}').textContent=dItems[${i}].amount?money(dItems[${i}].amount):''"></label>
+    <div class="amt" id="da${i}">${x.amount ? money(x.amount) : ""}</div>
+    <div class="row"><label class="field">${ic("phone-bold-duotone",20)}<input inputmode="tel" placeholder="Telefon (ixtiyoriy)" value="${esc(x.phone)}" oninput="dItems[${i}].phone=this.value"></label></div>
+    <label class="field">${ic("pen-bold-duotone",20)}<input placeholder="Izoh (ixtiyoriy)" value="${esc(x.note)}" oninput="dItems[${i}].note=this.value"></label>
+  </div>`).join("")}
+  <div class="row" style="margin-top:4px"><button class="btn b" id="dsave" onclick="saveDebts()">${ic("check-circle-bold",20)} Saqlash</button><button class="btn" onclick="closeForm()">Bekor</button></div>`;
+}
+function dSet(i, k, v){ dItems[i][k] = v; drawDF(); }
+async function saveDebts(){
+  const rows = dItems.map(x => ({person:x.person.trim().replace(/\s+/g, " "), phone:x.phone.trim() || null, dir:x.dir, kind:x.kind, amount:digits(x.amount), note:x.note.trim() || null}));
+  if(!rows.length) return closeForm();
+  if(rows.some(r => !r.person)) return toast("Ismni kiriting", "danger-triangle-bold");
+  if(rows.some(r => !(r.amount > 0))) return toast("Summani kiriting", "danger-triangle-bold");
+  rows.forEach(r => { const ex = D.find(d => d.dir === r.dir && nkey(d.person) === nkey(r.person)); if(ex) r.person = ex.person; });
+  const b = $("#dsave"); if(b) b.disabled = true;
+  const {error} = await T(sb.from("debts").insert(rows), 10000).catch(e => ({error:e}));
+  if(error){ if(b) b.disabled = false; return toast(/relation|schema cache/i.test(error.message || "") ? "Avval Supabase'da qarzlar.sql ni ishga tushiring" : errMsg(error), "danger-triangle-bold"); }
+  closeForm(); toast(rows.length > 1 ? rows.length + " ta yozuv saqlandi" : "Saqlandi");
+  df = rows[0].dir; await loadD(); if(tab === "debts") drawDebts();
+}
+
+/* Ovoz: Telegramdagidek bosib turib gapiriladi, qo'yib yuborilganda matnga aylanadi */
+let mr = null, mStream = null, mChunks = [], mT0 = 0, mUp = true, mTimer = null, mBusy = false;
+function micBar(){
+  const s = document.createElement("div"); s.id = "slab"; s.className = "slab";
+  s.innerHTML = `<div class="microw"><button id="mic" class="mic" aria-label="Ovozli kiritish" onpointerdown="recStart(event)" onpointerup="recStop()" onpointercancel="recStop()" oncontextmenu="return false">${ic("microphone-3-bold",30)}</button>
+  <div class="grow"><b id="mlab">Bosib turing va gapiring</b><small id="msub">Masalan: «Alisher 85 ming so'mlik nasiya oldi»</small></div></div>`;
+  document.body.appendChild(s);
+}
+function micUI(st = ""){
+  const b = $("#mic"); if(!b) return;
+  b.className = "mic" + (st ? " " + st : "");
+  $("#mlab").textContent = st === "rec" ? "0:00 · Qo'yib yuboring" : st === "busy" ? "Tushunilmoqda..." : "Bosib turing va gapiring";
+  $("#msub").textContent = st === "rec" ? "Ism, summa va kim kimga qarz ekanini ayting" : st === "busy" ? "Bir necha soniya" : "Masalan: «Alisher 85 ming so'mlik nasiya oldi»";
+}
+const stopStream = () => { try{ mStream?.getTracks().forEach(t => t.stop()); }catch(e){} mStream = null; };
+async function recStart(e){
+  e.preventDefault();
+  if(mBusy || mr || mStream) return;
+  try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(x){}
+  if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Bu qurilmada ovoz yozib bo'lmaydi", "danger-triangle-bold");
+  mUp = false;
+  let st;
+  try{ st = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); }
+  catch(x){ mUp = true; return toast("Mikrofonga ruxsat bering", "danger-triangle-bold"); }
+  mStream = st;
+  if(mUp){ stopStream(); return toast("Ruxsat berildi. Endi bosib turib gapiring", "microphone-3-bold"); }
+  mChunks = [];
+  try{ mr = new MediaRecorder(st); }catch(x){ stopStream(); return toast("Ovoz yozib bo'lmadi", "danger-triangle-bold"); }
+  mr.ondataavailable = ev => { if(ev.data && ev.data.size) mChunks.push(ev.data); };
+  mr.start(); mT0 = Date.now(); micUI("rec");
+  if(navigator.vibrate) navigator.vibrate(30);
+  mTimer = setInterval(() => {
+    const s = Math.floor((Date.now() - mT0) / 1000), l = $("#mlab");
+    if(l) l.textContent = `0:${String(s).padStart(2, "0")} · Qo'yib yuboring`;
+    if(s >= 59) recStop();
+  }, 250);
+}
+function recStop(){
+  mUp = true;
+  if(!mr) return;
+  const r = mr; mr = null; clearInterval(mTimer);
+  r.onstop = () => {
+    const dur = Date.now() - mT0, blob = new Blob(mChunks, {type:r.mimeType || "audio/mp4"});
+    stopStream(); micUI();
+    if(dur < 800 || !blob.size) return toast("Tugmani bosib turib gapiring", "microphone-3-bold");
+    sendVoice(blob);
+  };
+  try{ r.stop(); }catch(e){ stopStream(); micUI(); }
+}
+function recCancel(){
+  mUp = true;
+  if(mr){ const r = mr; mr = null; r.onstop = null; try{ r.stop(); }catch(e){} }
+  clearInterval(mTimer); stopStream();
+}
+function ab64(buf){
+  const u = new Uint8Array(buf); let s = "";
+  for(let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+async function toWav(blob){   // 16 kHz mono WAV: har qanday telefon formatini bir xil, yengil ko'rinishga keltiradi
+  const AC = window.AudioContext || window.webkitAudioContext, ctx = new AC();
+  let buf; try{ buf = await ctx.decodeAudioData(await blob.arrayBuffer()); } finally{ try{ ctx.close(); }catch(e){} }
+  const R = 16000, off = new OfflineAudioContext(1, Math.max(1, Math.ceil(buf.duration * R)), R);
+  const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
+  const pcm = (await off.startRendering()).getChannelData(0), n = pcm.length;
+  const v = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for(let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, R, true); v.setUint32(28, R * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+  for(let i = 0; i < n; i++){ const x = Math.max(-1, Math.min(1, pcm[i])); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+  return ab64(v.buffer);
+}
+async function sendVoice(blob){
+  mBusy = true; micUI("busy");
+  try{
+    let audio, mime = "audio/wav";
+    try{ audio = await toWav(blob); }catch(e){ audio = ab64(await blob.arrayBuffer()); mime = (blob.type || "audio/mp4").split(";")[0]; }
+    const names = [...new Set(D.map(d => d.person))].slice(0, 300);
+    const {data, error} = await T(sb.functions.invoke("qarz-ovoz", {body:{audio, mime, people:names}}), 45000);
+    if(error) throw error;
+    if(data?.error) throw new Error(data.error);
+    const items = (data?.items || []).filter(x => x && (x.person || x.amount));
+    if(!items.length && !data?.transcript) toast("Ovoz tushunilmadi, qaytadan ayting", "danger-triangle-bold");
+    else{
+      if(!items.length) toast("Ism yoki summani qo'lda kiriting", "danger-triangle-bold");
+      debtForm(items, data.transcript || "");
+    }
+  }catch(e){
+    const m = String(e?.message || "");
+    toast(/timeout/.test(m) ? "Javob kelmadi, internetni tekshiring" : /Failed to send|not found|404/i.test(m) ? "Ovozli kiritish hali sozlanmagan (qarz-ovoz)" : "Xato: " + m, "danger-triangle-bold");
+  }
+  mBusy = false; micUI();
 }
 
 /* ---------- USB SKANER (klaviatura kabi), UZILISH, XATOLAR ---------- */
