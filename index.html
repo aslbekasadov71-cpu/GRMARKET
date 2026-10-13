@@ -1354,21 +1354,18 @@ async function marketSearch(v){
       ? `<h2 style="margin-top:0">Ilovadagi do'konlar</h2>` + (mGroups.length > 1 ? `<small style="margin:0 4px 8px">${mGroups.length} ta mahsulot topildi</small>` : "") + mGroups.map(drawGroup).join("")
       : `<div class="empty" style="padding:14px 10px">${ic("magnifer-bold-duotone",40)}<div>Ilovadagi do'konlarda topilmadi</div><small>«${esc(q)}» · quyida internetdan qidiring</small></div>`)
     + inetBlock();
-  if(inetCache.has(q)) drawInet(inetCache.get(q));
+  if(inetCache.has(q)) drawInet(inetCache.get(q)); else inetSearch();
 }
 
 /* Internetdagi do'konlar (Uzum, Korzinka, Makro...): Google qidiruvi orqali */
 let inetT = null; const inetCache = new Map();
 function inetBlock(){
-  const t = inetT, qq = encodeURIComponent(t.name || t.q);
-  const L = [["Uzum Market", `https://uzum.uz/uz/search?query=${qq}`], ["Yandex Market", `https://market.yandex.uz/search?text=${qq}`], ["Google", `https://www.google.com/search?q=${encodeURIComponent((t.name || t.q) + " narxi so'm")}`]];
-  return `<h2>Internetdagi do'konlar</h2><div class="mgrp" id="inet">
+  const t = inetT;
+  return `<h2>Internetda · Uzum Market</h2><div class="mgrp" id="inet">
     <div class="mhead"><div class="mimg" style="width:56px;height:56px;cursor:default">${ic("global-bold-duotone",28)}<span id="inimg">${t.image ? `<img src="${esc(t.image)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</span></div>
-    <div class="grow"><b id="inname">${esc(t.name || t.q)}</b><small>Uzum, Korzinka, Makro, Yandex va boshqa saytlardagi narx</small></div></div>
-    <button class="btn b full" id="inetb" onclick="inetSearch()">${ic("magnifer-bold",20)} Internetdan narx qidirish</button>
-    <div id="inetr"></div>
-    <small style="margin:12px 0 6px">Yoki o'zingiz ochib ko'ring:</small>
-    <div class="chips" style="margin:0">${L.map(([n, u]) => `<a class="chip" style="text-decoration:none" href="${esc(u)}" target="_blank" rel="noopener">${n} ↗</a>`).join("")}</div></div>`;
+    <div class="grow"><b id="inname">${esc(t.name || t.q)}</b><small id="instat">Narxlar qidirilmoqda...</small></div>
+    <button class="btn auto sm" id="inetb" aria-label="Qayta qidirish" onclick="inetSearch()">${ic("refresh-circle-bold",20)}</button></div>
+    <div id="inetr"><div class="empty" style="padding:16px">Yuklanmoqda...</div></div></div>`;
 }
 async function fnCall(name, body, ms){
   const {data, error} = await T(sb.functions.invoke(name, {body}), ms);
@@ -1382,39 +1379,45 @@ async function fnCall(name, body, ms){
   return data;
 }
 async function inetSearch(){
-  const t = inetT, B = $("#inetb"); if(!t || !B) return;
-  B.disabled = true; B.innerHTML = `${ic("refresh-circle-bold",20)} Qidirilmoqda... (10–40 soniya)`;
-  $("#inetr").innerHTML = "";
+  const t = inetT; if(!t || !$("#inetr")) return;
+  if($("#instat")) $("#instat").textContent = "Narxlar qidirilmoqda...";
+  $("#inetr").innerHTML = `<div class="empty" style="padding:16px">Yuklanmoqda...</div>`;
   try{
     if(!t.name && t.barcode){
       const l = await lookup(t.barcode); t.name = l.name; if(!t.image) t.image = l.image;
       if($("#inname") && t.name) $("#inname").textContent = t.name;
       if($("#inimg") && t.image) $("#inimg").innerHTML = `<img src="${esc(t.image)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
     }
-    const d = await fnCall("narx-internet", {name:t.name, barcode:t.barcode}, 60000);
+    const d = await fnCall("narx-internet", {name:t.name, barcode:t.barcode}, 30000);
     inetCache.set(t.q, d);
     if(inetT === t) drawInet(d);
   }catch(e){
-    if(inetT === t && $("#inetr")) $("#inetr").innerHTML = `<small style="margin-top:10px;color:var(--red);font-weight:700">${esc(/timeout/.test(e.message) ? "Javob kelmadi, qayta urinib ko'ring" : e.message)}</small>`;
+    if(inetT === t && $("#inetr")){
+      $("#inetr").innerHTML = `<small style="margin-top:10px;color:var(--red);font-weight:700">${esc(/timeout/.test(e.message) ? "Javob kelmadi, ↻ tugmasi bilan qayta urinib ko'ring" : e.message)}</small>`;
+      if($("#instat")) $("#instat").textContent = "Topilmadi";
+    }
   }
-  const b2 = $("#inetb"); if(b2){ b2.disabled = false; b2.innerHTML = `${ic("refresh-circle-bold",20)} Qayta qidirish`; }
 }
 function drawInet(d){
   const R = $("#inetr"); if(!R) return;
   const it = d.items || [], mine = inetT && inetT.mine;
-  const b = $("#inetb"); if(b) b.innerHTML = `${ic("refresh-circle-bold",20)} Qayta qidirish`;
+  if($("#inname") && d.query && !inetT.name) $("#inname").textContent = d.query;
   if(!it.length){
-    R.innerHTML = `<small style="margin-top:10px">Internetda aniq narx topilmadi${d.note ? ": " + esc(d.note) : ""}. Pastdagi saytlarni o'zingiz ochib ko'ring.</small>`;
+    if($("#instat")) $("#instat").textContent = "Topilmadi";
+    R.innerHTML = `<small style="margin-top:10px">Uzum Market'da «${esc(d.query || inetT.q)}» topilmadi. Nomini qisqaroq yozib ko'ring (masalan: «Barni»).</small>`;
     return;
   }
-  const lo = it[0].price, hi = it[it.length - 1].price;
-  R.innerHTML = `<div style="margin-top:12px">${it.length > 1 ? `<div class="mstat"><div><small>Eng arzon</small><b class="cheap">${money(lo)}</b></div><div><small>Eng qimmat</small><b class="dear">${money(hi)}</b></div>${mine ? `<div><small>Sizda</small><b>${money(mine)}</b></div>` : ""}</div>` : ""}
-    ${it.map(x => `<div class="mrow"><div class="ico" style="width:38px;height:38px;border-radius:11px">${ic("cart-large-2-bold-duotone",20)}</div>
-      <div class="grow"><b>${esc(x.store)}</b>${x.title ? `<small>${esc(x.title)}</small>` : ""}${x.url ? `<small><a href="${esc(x.url)}" target="_blank" rel="noopener" class="blue" style="font-weight:700">Saytda ochish ↗</a></small>` : ""}</div>
-      <b class="right ${it.length > 1 && x.price === lo ? "cheap" : ""}">${money(x.price)}</b></div>`).join("")}
-    <small style="margin-top:8px">Narxlarni sun'iy intellekt Google qidiruvidan yig'di: ba'zan eskirgan yoki boshqa hajmdagi bo'lishi mumkin, saytda tekshiring.</small>
-    ${(d.sources || []).length ? `<small style="margin-top:6px">Manbalar: ${d.sources.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener" class="blue">${esc(s.title || "sayt")}</a>`).join(", ")}</small>` : ""}</div>`;
+  const pr = it.map(x => x.price), lo = Math.min(...pr), hi = Math.max(...pr);
+  if($("#instat")) $("#instat").textContent = `${it.length} ta taklif · ${money(lo)}${hi > lo ? " – " + money(hi) : ""}`;
+  if($("#inimg") && !inetT.image && it[0].image) $("#inimg").innerHTML = `<img src="${esc(it[0].image)}" alt="" referrerpolicy="no-referrer">`;
+  R.innerHTML = `${it.length > 1 || mine ? `<div class="mstat"><div><small>Eng arzon</small><b class="cheap">${money(lo)}</b></div>${it.length > 1 ? `<div><small>Eng qimmat</small><b class="dear">${money(hi)}</b></div>` : ""}${mine ? `<div><small>Sizda</small><b>${money(mine)}</b></div>` : ""}</div>` : ""}
+    ${it.map(x => `<a class="mrow" style="text-decoration:none;color:inherit" href="${esc(x.url)}" target="_blank" rel="noopener">
+      <div class="mimg" style="width:60px;height:60px;cursor:pointer">${ic("box-bold-duotone",24)}${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
+      <div class="grow"><b style="font-size:14px;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.title)}</b><small>${esc(x.store)}${x.score >= 0.75 ? ' · <span class="cheap" style="font-weight:700">aniq mos</span>' : ""}</small></div>
+      <div class="right"><b class="${x.price === lo && it.length > 1 ? "cheap" : ""}">${money(x.price)}</b>${x.old > x.price ? `<small style="text-decoration:line-through">${money(x.old)}</small>` : ""}</div></a>`).join("")}
+    <small style="margin-top:8px">Narxlar Uzum Market'dan to'g'ridan-to'g'ri olindi. Bosib, mahsulotni saytda ochishingiz mumkin.</small>`;
 }
+
 function drawGroup(g, gi){
   const cnt = {}; g.forEach(r => cnt[r.name] = (cnt[r.name] || 0) + 1);
   const img = (g.find(r => r.image) || {}).image || "", name = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], prices = g.map(r => +r.price);
