@@ -1361,7 +1361,7 @@ async function marketSearch(v){
 let inetT = null; const inetCache = new Map();
 function inetBlock(){
   const t = inetT;
-  return `<h2>Internetda · Uzum Market</h2><div class="mgrp" id="inet">
+  return `<h2>Internetdagi do'konlar</h2><div class="mgrp" id="inet">
     <div class="mhead"><div class="mimg" style="width:56px;height:56px;cursor:default">${ic("global-bold-duotone",28)}<span id="inimg">${t.image ? `<img src="${esc(t.image)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</span></div>
     <div class="grow"><b id="inname">${esc(t.name || t.q)}</b><small id="instat">Narxlar qidirilmoqda...</small></div>
     <button class="btn auto sm" id="inetb" aria-label="Qayta qidirish" onclick="inetSearch()">${ic("refresh-circle-bold",20)}</button></div>
@@ -1398,24 +1398,29 @@ async function inetSearch(){
     }
   }
 }
+const STORE_COLOR = {"Yandex Lavka":"#fc3f1d", "Uzum Market":"#7000ff", "Makro":"#e30613"};
 function drawInet(d){
   const R = $("#inetr"); if(!R) return;
-  const it = d.items || [], mine = inetT && inetT.mine;
+  const unit = x => x.each || x.price;
+  const it = (d.items || []).slice().sort((a, b) => (b.score >= .75) - (a.score >= .75) || unit(a) - unit(b)), mine = inetT && inetT.mine;
   if($("#inname") && d.query && !inetT.name) $("#inname").textContent = d.query;
+  const src = Object.entries(d.sources || {}).map(([k, v]) => `${esc(k)} ${v === "ok" ? "✓" : "✗"}`).join(" · ");
   if(!it.length){
     if($("#instat")) $("#instat").textContent = "Topilmadi";
-    R.innerHTML = `<small style="margin-top:10px">Uzum Market'da «${esc(d.query || inetT.q)}» topilmadi. Nomini qisqaroq yozib ko'ring (masalan: «Barni»).</small>`;
+    R.innerHTML = `<small style="margin-top:10px">«${esc(d.query || inetT.q)}» internet-do'konlarda topilmadi. Nomini qisqaroq yozib ko'ring (masalan: «Snickers»).</small>${src ? `<small style="margin-top:6px">Tekshirildi: ${src}</small>` : ""}`;
     return;
   }
-  const pr = it.map(x => x.price), lo = Math.min(...pr), hi = Math.max(...pr);
-  if($("#instat")) $("#instat").textContent = `${it.length} ta taklif · ${money(lo)}${hi > lo ? " – " + money(hi) : ""}`;
-  if($("#inimg") && !inetT.image && it[0].image) $("#inimg").innerHTML = `<img src="${esc(it[0].image)}" alt="" referrerpolicy="no-referrer">`;
-  R.innerHTML = `${it.length > 1 || mine ? `<div class="mstat"><div><small>Eng arzon</small><b class="cheap">${money(lo)}</b></div>${it.length > 1 ? `<div><small>Eng qimmat</small><b class="dear">${money(hi)}</b></div>` : ""}${mine ? `<div><small>Sizda</small><b>${money(mine)}</b></div>` : ""}</div>` : ""}
-    ${it.map(x => `<a class="mrow" style="text-decoration:none;color:inherit" href="${esc(x.url)}" target="_blank" rel="noopener">
-      <div class="mimg" style="width:60px;height:60px;cursor:pointer">${ic("box-bold-duotone",24)}${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
-      <div class="grow"><b style="font-size:14px;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.title)}</b><small>${esc(x.store)}${x.score >= 0.75 ? ' · <span class="cheap" style="font-weight:700">aniq mos</span>' : ""}</small></div>
-      <div class="right"><b class="${x.price === lo && it.length > 1 ? "cheap" : ""}">${money(x.price)}</b>${x.old > x.price ? `<small style="text-decoration:line-through">${money(x.old)}</small>` : ""}</div></a>`).join("")}
-    <small style="margin-top:8px">Narxlar Uzum Market'dan to'g'ridan-to'g'ri olindi. Bosib, mahsulotni saytda ochishingiz mumkin.</small>`;
+  const pr = it.map(unit), lo = Math.min(...pr), hi = Math.max(...pr), nStores = new Set(it.map(x => x.store)).size;
+  if($("#instat")) $("#instat").textContent = `${nStores} ta do'kon · ${it.length} ta taklif`;
+  if($("#inimg") && !inetT.image){ const im = it.find(x => x.image); if(im) $("#inimg").innerHTML = `<img src="${esc(im.image)}" alt="" referrerpolicy="no-referrer">`; }
+  R.innerHTML = `<div class="mstat"><div><small>Eng arzon</small><b class="cheap">${money(lo)}</b></div>${it.length > 1 ? `<div><small>Eng qimmat</small><b class="dear">${money(hi)}</b></div>` : ""}${mine ? `<div><small>Sizda</small><b>${money(mine)}</b></div>` : ""}</div>
+    ${it.map(x => `<a class="mrow" style="text-decoration:none;color:inherit;align-items:flex-start" href="${esc(x.url)}" target="_blank" rel="noopener">
+      <div class="mimg" style="width:58px;height:58px;cursor:pointer">${ic("box-bold-duotone",24)}${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
+      <div class="grow"><b style="color:${STORE_COLOR[x.store] || "var(--ink)"}">${esc(x.store)}</b>
+        <small style="color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.title)}</small>
+        ${x.note ? `<small>${esc(x.note)}</small>` : ""}${x.score >= 0.75 ? '<small class="cheap" style="font-weight:700">aniq mos</small>' : ""}</div>
+      <div class="right"><b class="${unit(x) === lo && it.length > 1 ? "cheap" : ""}">${money(x.price)}</b>${x.old > x.price ? `<small style="text-decoration:line-through">${money(x.old)}</small>` : ""}${x.each ? `<small>1 donasi ≈ ${money(x.each)}</small>` : ""}</div></a>`).join("")}
+    <small style="margin-top:8px">Narxlar do'konlarning o'z saytlaridan hozir olindi${src ? ` (${src})` : ""}. Bosib, saytda ochishingiz mumkin.</small>`;
 }
 
 function drawGroup(g, gi){
