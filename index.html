@@ -122,6 +122,19 @@ nav button.on{color:var(--b)}
 .mic.busy{opacity:.55}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 6px rgba(240,68,56,.22)}50%{box-shadow:0 0 0 16px rgba(240,68,56,.06)}}
 .ini{font-weight:800;font-size:18px}
+.mgrp{background:var(--card);border-radius:18px;padding:12px 14px;margin-bottom:10px;overflow:hidden}
+.mhead{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.mhead .grow{min-width:0}.mhead b{display:block}
+.mimg{width:76px;height:76px;border-radius:14px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;flex:none;color:var(--b);position:relative;cursor:zoom-in}
+.mimg img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff}
+.mstat{display:flex;gap:6px;margin-bottom:4px}
+.mstat div{flex:1;background:var(--bg);border-radius:12px;padding:8px 10px;min-width:0}
+.mstat small{font-size:12px}.mstat b{font-size:15px;white-space:nowrap}
+.mrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.mrow.me{background:var(--bl);margin:0 -14px;padding:10px 14px}
+.mrow .grow{flex:1;min-width:0}.mrow b{display:block}
+.cheap{color:#16a34a}.dear{color:var(--red)}
+.bigimg{width:100%;max-height:70vh;object-fit:contain;background:#fff;border-radius:18px;margin-bottom:12px}
 .rank{width:28px;height:28px;border-radius:9px;background:var(--bl);color:var(--b);display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
 .pbar{height:6px;border-radius:99px;background:var(--bl);margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--b);border-radius:99px}
 .line{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -471,18 +484,18 @@ async function logout(){
   await stopScan(); $("#slab")?.remove();
   try{ await T(sb.auth.signOut(), 4000); }catch(e){}
   try{ localStorage.removeItem("dme"); localStorage.removeItem("dp"); localStorage.removeItem("dd"); }catch(e){}
-  me = null; SH = null; cart = []; P = new Map(); D = []; loginView();
+  me = null; SH = null; cart = []; P = new Map(); D = []; ADDR = null; mq = ""; loginView();
 }
 
 /* ---------- ASOSIY ---------- */
 function show(t){
   stopScan(); $("#slab")?.remove(); tab = t;
-  const hl = t === "admins" ? "set" : t;
+  const hl = t === "admins" ? "set" : t === "market" ? "products" : t;
   const tabs = [["sell","cart-large-2-bold-duotone","Sotuv"], ["rec","bill-list-bold-duotone","Cheklar"], ["products","box-bold-duotone","Mahsulot"], ["debts","notebook-bold-duotone","Qarzlar"]];
   if(me.role === "owner") tabs.push(["report","chart-2-bold-duotone","Hisobot"]);
   tabs.push(["set","settings-bold-duotone","Sozlama"]);
   $("#app").innerHTML = `<div id="view"></div><nav>${tabs.map(([k,i,l]) => `<button class="${k===hl?"on":""}" onclick="show('${k}')">${ic(i,26)}${l}</button>`).join("")}</nav>`;
-  ({sell:sellView, rec:receiptsView, products:productsView, debts:debtsView, report:reportView, set:setView, admins:adminsView})[t]();
+  ({sell:sellView, rec:receiptsView, products:productsView, debts:debtsView, market:marketView, report:reportView, set:setView, admins:adminsView})[t]();
   updBadge();
 }
 function banner(){
@@ -719,6 +732,7 @@ async function cancelReceipt(){
 function productsView(){
   $("#view").innerHTML = head("Mahsulotlar") + `<div class="chips" id="chips"></div>
   <div class="row"><label class="field" style="margin:0">${ic("magnifer-linear",20)}<input id="q" placeholder="Nomi yoki shtrix-kod" oninput="drawProducts()"></label>
+  <button class="btn auto" aria-label="Bozor narxlari" onclick="show('market')">${ic("tag-price-bold-duotone",26)}</button>
   <button class="btn b auto" onclick="openForm(blank())">${ic("add-circle-bold",26)}</button></div><div id="plist" style="margin-top:12px"></div>`;
   drawProducts();
 }
@@ -752,6 +766,7 @@ function openForm(p, fromSell = false){
   : `<div class="row"><label class="field">${ic("wallet-money-bold-duotone",20)}<input id="f_price" type="number" inputmode="decimal" placeholder="Sotilish narxi" value="${p.price || ""}"></label>
   <label class="field">${ic("box-bold-duotone",20)}<input id="f_stock" type="number" inputmode="decimal" placeholder="Qoldiq" value="${p.stock || ""}"></label></div>`}
   <select id="f_unit">${units.map(u => `<option ${u===p.unit?"selected":""}>${esc(u)}</option>`).join("")}</select>
+  ${p.isNew ? "" : `<button class="btn full" style="margin-bottom:10px" onclick="mq='${esc(p.barcode)}';closeForm();show('market')">${ic("tag-price-bold-duotone",20)} Boshqa do'konlardagi narxi</button>`}
   <div class="row"><button class="btn b" onclick="saveProduct(${fromSell})">Saqlash</button><button class="btn" onclick="closeForm()">Bekor</button>
   ${p.isNew ? "" : `<button class="btn red auto" onclick="delProduct('${encodeURIComponent(p.barcode)}')">${ic("trash-bin-trash-bold",22)}</button>`}</div></div>`;
   m.addEventListener("click", e => { if(e.target === m) closeForm(); });
@@ -886,7 +901,9 @@ function setView(){
   $("#view").innerHTML = head("Sozlamalar") + `
   <div class="card"><div class="ico">${ic("user-rounded-bold-duotone",26)}</div><div class="grow"><b>${esc("ID " + idOf(me.email))}</b><small>${owner ? "Egasi" : "Admin"}</small></div></div>
   <h2>Do'kon</h2>
-  ${owner ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input value="${esc(shopName())}" placeholder="Do'kon nomi" onchange="saveShopName(this.value)"></label>`
+  ${owner ? `<label class="field">${ic("shop-2-bold-duotone",20)}<input value="${esc(shopName())}" placeholder="Do'kon nomi" onchange="saveShopName(this.value)"></label>
+  <label class="field">${ic("map-point-bold-duotone",20)}<input id="addr" value="${esc(ADDR || "")}" placeholder="Manzil (masalan: Chilonzor 9, bozor yonida)" onchange="saveAddr(this.value)"></label>
+  <small style="margin:-4px 0 6px 4px">Manzil «Bozor narxlari»da boshqa do'konlarga ko'rinadi</small>`
     : `<div class="card"><div class="ico">${ic("shop-2-bold-duotone",24)}</div><div class="grow"><b>${esc(shopName())}</b></div></div>`}
   ${SH && SUBS_ON ? `<div class="card"><div class="ico" ${d < 0 ? 'style="background:var(--redl);color:var(--red)"' : ""}>${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Obuna: ${fmtD(SH.paid_until)} gacha</b><small>${d >= 0 ? d + " kun qoldi" : "muddati tugagan"} · Aloqa: ${esc(SUPPORT.phone)}</small></div></div>
   <div class="card"><div class="ico">${ic("wallet-money-bold-duotone",24)}</div><div class="grow"><b>Obunani to'lash: ${esc(SUPPORT.price)}</b><small>${esc(payHint())}</small></div>${paidBtn()}</div>` : ""}
@@ -915,6 +932,7 @@ function setView(){
   <div class="card" onclick="changePw()"><div class="ico">${ic("lock-password-bold-duotone",24)}</div><div class="grow"><b>Parolni o'zgartirish</b></div>${arrow}</div>
   <div style="margin-top:12px"><button class="btn red full" onclick="logout()">${ic("logout-2-bold-duotone")} Chiqish</button></div>
   <small style="text-align:center;margin-top:14px">Do'kon v${VER}</small>`;
+  if(owner) loadAddr();
 }
 async function saveShopName(v){
   v = v.trim(); if(v.length < 2) return toast("Do'kon nomini kiriting", "danger-triangle-bold");
@@ -1284,6 +1302,83 @@ async function sendVoice(pcm, rate){
   mBusy = false; micUI();
 }
 
+/* ---------- BOZOR NARXLARI: boshqa do'konlarda qancha turibdi ---------- */
+let ADDR = null, mq = "", mqT = null, mGroups = [];
+async function loadAddr(){
+  try{ if(ADDR === null){ const {data, error} = await T(sb.rpc("shop_address"), 6000); if(!error) ADDR = data || ""; } }catch(e){}
+  const i = $("#addr"); if(i && !i.value && ADDR) i.value = ADDR;
+  return ADDR;
+}
+async function saveAddr(v){
+  const {error} = await T(sb.rpc("set_shop_address", {p_address:v}), 8000).catch(e => ({error:e}));
+  if(error) return toast(errMsg(error), "danger-triangle-bold");
+  ADDR = v.trim(); toast("Manzil saqlandi");
+}
+function marketView(){
+  $("#view").innerHTML = head("Bozor narxlari") + `<div id="mban"></div>
+  <div class="scan" id="mscan"><div id="mreader"></div>${CORNERS}</div>
+  <div class="row"><label class="field" style="margin:0">${ic("magnifer-linear",20)}<input id="mq" placeholder="Shtrix-kod yoki mahsulot nomi" value="${esc(mq)}" enterkeyhint="search" autocomplete="off"
+    oninput="clearTimeout(mqT);mqT=setTimeout(()=>marketSearch(this.value),450)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();clearTimeout(mqT);marketSearch(this.value)}"></label>
+  <button class="btn b auto" aria-label="Skaner" onclick="marketScan()">${ic("scanner-bold",26)}</button></div>
+  <div id="mlist" style="margin-top:12px"></div>`;
+  marketSearch(mq);
+  if(me.role === "owner") loadAddr().then(a => { if(tab === "market" && a === "" && $("#mban")) $("#mban").innerHTML = `<div class="banner" onclick="show('set')">${ic("map-point-bold",22)}<div>Do'koningiz manzilini kiriting<small>Sozlamalar → Manzil. Shunda boshqalar sizni topa oladi</small></div></div>`; });
+}
+function marketScan(){
+  if(scanner) return stopScan();
+  startScan("mscan", "mreader", async c => { if(!fresh(c)) return; await stopScan(); const i = $("#mq"); if(i) i.value = c; marketSearch(c); });
+}
+async function marketSearch(v){
+  mq = String(v || "").trim();
+  const L = $("#mlist"); if(!L) return;
+  if(mq.length < 2){
+    L.innerHTML = `<div class="empty">${ic("tag-price-bold-duotone",54)}<div>Mahsulotni qidiring</div><small>Shtrix-kodni skanerlang yoki nomini yozing: boshqa do'konlarda qanchaga sotilayotgani rasmi bilan chiqadi</small></div>`;
+    return;
+  }
+  L.innerHTML = `<div class="empty">Qidirilmoqda...</div>`;
+  const q = mq; let rows;
+  try{ const {data, error} = await T(sb.rpc("price_compare", {p_q:q}), 10000); if(error) throw error; rows = data || []; }
+  catch(e){
+    if(q === mq && $("#mlist")) $("#mlist").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone",54)}<div>Yuklab bo'lmadi</div><small>${esc(/timeout|fetch/i.test(e?.message || "") ? "Internetni tekshiring" : errMsg(e))}</small></div>`;
+    return;
+  }
+  if(q !== mq || !$("#mlist")) return;           // eskirgan javob
+  const by = new Map();
+  rows.forEach(r => { if(!by.has(r.barcode)) by.set(r.barcode, []); by.get(r.barcode).push(r); });
+  mGroups = [...by.values()].map(g => g.sort((a, b) => a.price - b.price || (b.mine - a.mine)))
+    .sort((a, b) => (b.length - a.length) || a[0].name.localeCompare(b[0].name));
+  if(!mGroups.length){
+    $("#mlist").innerHTML = `<div class="empty">${ic("magnifer-bold-duotone",54)}<div>Hech bir do'konda topilmadi</div><small>«${esc(q)}»</small></div>`;
+    return;
+  }
+  $("#mlist").innerHTML = (mGroups.length > 1 ? `<small style="margin:0 4px 8px">${mGroups.length} ta mahsulot topildi</small>` : "") + mGroups.map(drawGroup).join("");
+}
+function drawGroup(g, gi){
+  const cnt = {}; g.forEach(r => cnt[r.name] = (cnt[r.name] || 0) + 1);
+  const img = (g.find(r => r.image) || {}).image || "", name = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], prices = g.map(r => +r.price);
+  const lo = Math.min(...prices), hi = Math.max(...prices), avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const mine = g.find(r => r.mine), shops = new Set(g.map(r => r.shop_id)).size;
+  const diff = mine && g.length > 1 ? Math.round((mine.price - avg) / avg * 100) : null;
+  return `<div class="mgrp"><div class="mhead">
+    <div class="mimg" ${img ? `onclick="bigImg(${gi})"` : ""}>${ic("box-bold-duotone",30)}${img ? `<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
+    <div class="grow"><b>${esc(name)}</b><small>${esc(g[0].barcode)}</small><small>${shops} ta do'konda${g[0].unit ? " · " + esc(g[0].unit) : ""}</small></div></div>
+    ${g.length > 1 ? `<div class="mstat"><div><small>Eng arzon</small><b class="cheap">${money(lo)}</b></div><div><small>O'rtacha</small><b>${money(avg)}</b></div><div><small>Eng qimmat</small><b class="dear">${money(hi)}</b></div></div>` : ""}
+    ${diff !== null ? `<small style="margin:6px 0 8px;font-weight:700;color:${diff > 0 ? "var(--red)" : diff < 0 ? "#16a34a" : "var(--mute)"}">Sizning narxingiz o'rtachadan ${diff === 0 ? "farq qilmaydi" : Math.abs(diff) + "% " + (diff > 0 ? "qimmat" : "arzon")}</small>` : ""}
+    ${g.map(r => `<div class="mrow ${r.mine ? "me" : ""}"><div class="ico" style="width:38px;height:38px;border-radius:11px">${ic("shop-2-bold-duotone",20)}</div>
+      <div class="grow"><b>${esc(r.shop_name || "Do'kon")}${r.mine ? ' <span class="tag">Siz</span>' : ""}</b><small>${r.address ? ic("map-point-linear",13) + " " + esc(r.address) : "Manzil kiritilmagan"}</small>
+      ${r.name !== name ? `<small>${esc(r.name)}</small>` : ""}</div>
+      <b class="right ${g.length > 1 && +r.price === lo ? "cheap" : ""}">${money(r.price)}</b></div>`).join("")}
+  </div>`;
+}
+function bigImg(gi){
+  const g = mGroups[gi]; if(!g) return; const img = (g.find(r => r.image) || {}).image; if(!img) return;
+  closeForm();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div><img class="bigimg" src="${esc(img)}" alt="" referrerpolicy="no-referrer"><b>${esc(g[0].name)}</b><small style="margin-bottom:12px">${esc(g[0].barcode)}</small><button class="btn full" onclick="closeForm()">Yopish</button></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m);
+}
+
 /* ---------- USB SKANER (klaviatura kabi), UZILISH, XATOLAR ---------- */
 let kb = "", kt = 0;
 addEventListener("keydown", e => {
@@ -1294,6 +1389,7 @@ addEventListener("keydown", e => {
     if(c.length >= 4){
       feedback();
       if(tab === "sell") onCode(c); else if(tab === "products"){ $("#q").value = c; drawProducts(); }
+      else if(tab === "market" && $("#mq")){ $("#mq").value = c; marketSearch(c); }
     }
   }else if(e.key.length === 1) kb += e.key;
 });
