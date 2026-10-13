@@ -1170,7 +1170,8 @@ async function saveDebts(){
 }
 
 /* Ovoz: Telegramdagidek bosib turib gapiriladi, qo'yib yuborilganda matnga aylanadi */
-let mr = null, mStream = null, mChunks = [], mT0 = 0, mUp = true, mTimer = null, mBusy = false;
+// Ovoz to'g'ridan-to'g'ri mikrofondan PCM ko'rinishida olinadi (iPhone'da ham qotmaydi), keyin 16 kHz WAV qilinadi
+let mCtx = null, mSrc = null, mProc = null, mPcm = [], mRate = 48000, mOn = false, mStream = null, mT0 = 0, mUp = true, mTimer = null, mBusy = false;
 function micBar(){
   const s = document.createElement("div"); s.id = "slab"; s.className = "slab";
   s.innerHTML = `<div class="microw"><button id="mic" class="mic" aria-label="Ovozli kiritish" onpointerdown="recStart(event)" onpointerup="recStop()" onpointercancel="recStop()" oncontextmenu="return false">${ic("microphone-3-bold",30)}</button>
@@ -1183,22 +1184,35 @@ function micUI(st = ""){
   $("#mlab").textContent = st === "rec" ? "0:00 · Qo'yib yuboring" : st === "busy" ? "Tushunilmoqda..." : "Bosib turing va gapiring";
   $("#msub").textContent = st === "rec" ? "Ism, summa va kim kimga qarz ekanini ayting" : st === "busy" ? "Bir necha soniya" : "Masalan: «Alisher 85 ming so'mlik nasiya oldi»";
 }
-const stopStream = () => { try{ mStream?.getTracks().forEach(t => t.stop()); }catch(e){} mStream = null; };
+const stopStream = () => {
+  try{ if(mProc){ mProc.onaudioprocess = null; mProc.disconnect(); } }catch(e){}
+  try{ if(mSrc) mSrc.disconnect(); }catch(e){}
+  try{ mStream?.getTracks().forEach(t => t.stop()); }catch(e){}
+  mProc = mSrc = mStream = null; mOn = false;
+};
 async function recStart(e){
   e.preventDefault();
-  if(mBusy || mr || mStream) return;
+  if(mBusy || mOn || mStream) return;
   try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(x){}
-  if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Bu qurilmada ovoz yozib bo'lmaydi", "danger-triangle-bold");
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!navigator.mediaDevices?.getUserMedia || !AC) return toast("Bu qurilmada ovoz yozib bo'lmaydi", "danger-triangle-bold");
+  try{ if(!mCtx || mCtx.state === "closed") mCtx = new AC(); mCtx.resume(); }catch(x){ return toast("Ovoz yozib bo'lmadi", "danger-triangle-bold"); }
   mUp = false;
   let st;
   try{ st = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); }
   catch(x){ mUp = true; return toast("Mikrofonga ruxsat bering", "danger-triangle-bold"); }
   mStream = st;
   if(mUp){ stopStream(); return toast("Ruxsat berildi. Endi bosib turib gapiring", "microphone-3-bold"); }
-  mChunks = [];
-  try{ mr = new MediaRecorder(st); }catch(x){ stopStream(); return toast("Ovoz yozib bo'lmadi", "danger-triangle-bold"); }
-  mr.ondataavailable = ev => { if(ev.data && ev.data.size) mChunks.push(ev.data); };
-  mr.start(); mT0 = Date.now(); micUI("rec");
+  try{
+    await T(mCtx.resume(), 2000).catch(() => {});
+    mRate = mCtx.sampleRate; mPcm = [];
+    mSrc = mCtx.createMediaStreamSource(st);
+    mProc = mCtx.createScriptProcessor(4096, 1, 1);
+    mProc.onaudioprocess = ev => { if(mOn) mPcm.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
+    mSrc.connect(mProc); mProc.connect(mCtx.destination);
+  }catch(x){ stopStream(); return toast("Ovoz yozib bo'lmadi", "danger-triangle-bold"); }
+  mOn = true; mT0 = Date.now(); micUI("rec");
+  if(mUp) return recStop();
   if(navigator.vibrate) navigator.vibrate(30);
   mTimer = setInterval(() => {
     const s = Math.floor((Date.now() - mT0) / 1000), l = $("#mlab");
@@ -1208,46 +1222,52 @@ async function recStart(e){
 }
 function recStop(){
   mUp = true;
-  if(!mr) return;
-  const r = mr; mr = null; clearInterval(mTimer);
-  r.onstop = () => {
-    const dur = Date.now() - mT0, blob = new Blob(mChunks, {type:r.mimeType || "audio/mp4"});
+  if(!mOn) return;
+  clearInterval(mTimer);
+  const dur = Date.now() - mT0;
+  setTimeout(() => {            // oxirgi bo'lak ham yozilib ulgurishi uchun
+    const pcm = mPcm, rate = mRate; mPcm = [];
     stopStream(); micUI();
-    if(dur < 800 || !blob.size) return toast("Tugmani bosib turib gapiring", "microphone-3-bold");
-    sendVoice(blob);
-  };
-  try{ r.stop(); }catch(e){ stopStream(); micUI(); }
+    if(dur < 800 || !pcm.length) return toast(pcm.length ? "Tugmani bosib turib gapiring" : "Mikrofondan ovoz kelmadi, qayta urinib ko'ring", "microphone-3-bold");
+    sendVoice(pcm, rate);
+  }, 200);
 }
-function recCancel(){
-  mUp = true;
-  if(mr){ const r = mr; mr = null; r.onstop = null; try{ r.stop(); }catch(e){} }
-  clearInterval(mTimer); stopStream();
-}
+function recCancel(){ mUp = true; clearInterval(mTimer); if(mOn || mStream){ mPcm = []; stopStream(); } }
 function ab64(buf){
   const u = new Uint8Array(buf); let s = "";
   for(let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
   return btoa(s);
 }
-async function toWav(blob){   // 16 kHz mono WAV: har qanday telefon formatini bir xil, yengil ko'rinishga keltiradi
-  const AC = window.AudioContext || window.webkitAudioContext, ctx = new AC();
-  let buf; try{ buf = await ctx.decodeAudioData(await blob.arrayBuffer()); } finally{ try{ ctx.close(); }catch(e){} }
-  const R = 16000, off = new OfflineAudioContext(1, Math.max(1, Math.ceil(buf.duration * R)), R);
-  const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
-  const pcm = (await off.startRendering()).getChannelData(0), n = pcm.length;
-  const v = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for(let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+function toWav(chunks, rate){   // 16 kHz mono WAV (yengil va Gemini uchun qulay)
+  const R = 16000, len = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(len);
+  let o = 0; for(const c of chunks){ all.set(c, o); o += c.length; }
+  const k = rate / R, n = Math.floor(len / k), out = new Float32Array(n);
+  for(let i = 0; i < n; i++){            // o'rtacha olib chastotani pasaytirish
+    const a = Math.floor(i * k), b = Math.min(len, Math.floor((i + 1) * k)); let s = 0;
+    for(let j = a; j < b; j++) s += all[j];
+    out[i] = b > a ? s / (b - a) : (all[a] || 0);
+  }
+  let peak = 0; for(let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(out[i]));
+  const g = peak > 0.01 && peak < 0.5 ? 0.9 / peak : 1;   // past ovozni kuchaytirish
+  const v = new DataView(new ArrayBuffer(44 + n * 2)), w = (p, s) => { for(let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
   w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
   v.setUint32(24, R, true); v.setUint32(28, R * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
-  for(let i = 0; i < n; i++){ const x = Math.max(-1, Math.min(1, pcm[i])); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
-  return ab64(v.buffer);
+  for(let i = 0; i < n; i++){ const x = Math.max(-1, Math.min(1, out[i] * g)); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+  return {audio:ab64(v.buffer), peak};
 }
-async function sendVoice(blob){
+async function sendVoice(pcm, rate){
   mBusy = true; micUI("busy");
   try{
-    let audio, mime = "audio/wav";
-    try{ audio = await toWav(blob); }catch(e){ audio = ab64(await blob.arrayBuffer()); mime = (blob.type || "audio/mp4").split(";")[0]; }
+    const {audio, peak} = toWav(pcm, rate), mime = "audio/wav";
+    if(peak < 0.003) throw new Error("Ovoz eshitilmadi: mikrofon juda past yoki yopiq");
     const names = [...new Set(D.map(d => d.person))].slice(0, 300);
     const {data, error} = await T(sb.functions.invoke("qarz-ovoz", {body:{audio, mime, people:names}}), 45000);
-    if(error) throw error;
+    if(error){
+      let st = 0, body = "";
+      try{ st = error.context?.status || 0; body = await error.context?.text(); }catch(x){}
+      try{ const j = JSON.parse(body); body = j.error || j.msg || j.message || body; }catch(x){}
+      throw new Error(st === 404 ? "qarz-ovoz funksiyasi topilmadi (nomini tekshiring)" : st === 401 ? "401: funksiyada «Verify JWT» ni o'chiring" : (st ? st + ": " : "") + (body || error.message));
+    }
     if(data?.error) throw new Error(data.error);
     const items = (data?.items || []).filter(x => x && (x.person || x.amount));
     if(!items.length && !data?.transcript) toast("Ovoz tushunilmadi, qaytadan ayting", "danger-triangle-bold");
@@ -1257,7 +1277,9 @@ async function sendVoice(blob){
     }
   }catch(e){
     const m = String(e?.message || "");
-    toast(/timeout/.test(m) ? "Javob kelmadi, internetni tekshiring" : /Failed to send|not found|404/i.test(m) ? "Ovozli kiritish hali sozlanmagan (qarz-ovoz)" : "Xato: " + m, "danger-triangle-bold");
+    const t = $("#toast");
+    toast(/timeout/.test(m) ? "Javob kelmadi, internetni tekshiring" : /Failed to send/i.test(m) ? "Funksiyaga ulanib bo'lmadi (qarz-ovoz)" : "Xato: " + m.slice(0, 160), "danger-triangle-bold");
+    clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 8000);
   }
   mBusy = false; micUI();
 }
