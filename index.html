@@ -62,6 +62,12 @@ input:focus,select:focus{border-color:var(--b)}
 .chips{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
 .chip{font:inherit;font-weight:700;font-size:14px;white-space:nowrap;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:99px}
 .chip.on{background:var(--bl);color:var(--b);border-color:var(--bl)}
+.qstart{display:flex;gap:12px;align-items:center;border-radius:16px;padding:14px;margin:0 0 14px;background:var(--bl);color:var(--b);cursor:pointer}
+.qstart b{display:block;font-size:16px}.qstart small{display:block;color:var(--ink);opacity:.75;font-weight:500;margin-top:2px}
+.qstart .bar{height:6px;border-radius:9px;background:rgba(0,0,0,.08);margin-top:8px;overflow:hidden}.qstart .bar i{display:block;height:100%;background:var(--b);border-radius:9px}
+.qrow{display:flex;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.qrow input{width:22px;height:22px;flex:none;accent-color:var(--b)}.qrow .grow{min-width:0}.qrow .grow b{font-size:14px;font-weight:600}
+.qrow.have{opacity:.45;pointer-events:none}
 .qty{display:flex;align-items:center;gap:2px;flex:none;background:var(--bg);border-radius:12px;padding:4px}
 .qty button{background:none;border:0;color:var(--b);padding:4px;cursor:pointer;display:grid}
 .qty b{min-width:36px;text-align:center;font-size:17px}
@@ -302,6 +308,9 @@ async function init(){
   if(me.role === "pending") return pendingView();
   cacheMe();
   await loadP(); show("sell"); flush();
+  sb.rpc("touch_seen").then(() => {}, () => {});                 // oxirgi faollik (egasi uchun statistika)
+  let seen = null; try{ seen = localStorage.getItem("dqs"); }catch(e){}
+  if(me.role === "owner" && P.size < 5 && !seen){ try{ localStorage.setItem("dqs", "1"); }catch(e){} setTimeout(quickFill, 600); }
 }
 const cacheMe = () => { try{ localStorage.setItem("dme", JSON.stringify({p:me, s:SH})); }catch(e){} };
 async function refreshShop(){
@@ -533,6 +542,11 @@ const toggleScan = () => scanner ? stopScan() : startScan("scanbox", "reader", c
 
 /* ---------- NOMNI AVTOMATIK TOPISH ---------- */
 async function lookup(code){
+  // 1) Bizning katalog (Baraka, Korzinka ... do'konlaridan, har kuni yangilanadi): nom, rasm va bozor narxi
+  try{
+    const {data} = await T(sb.from("catalog").select("name,image,price").eq("barcode", code).maybeSingle(), 3500);
+    if(data && data.name) return {name:data.name, image:data.image || "", price:data.price || 0};
+  }catch(e){}
   const one = async host => {
     const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4500);
     const r = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,quantity,image_front_small_url,image_small_url,image_front_url,image_url`, {signal:ctl.signal});
@@ -557,7 +571,7 @@ async function find(code){
   }catch(e){}
   toast("Qidirilmoqda...", "magnifer-linear");
   const r = await lookup(code);
-  return {...blank(), barcode:code, name:r.name, image:r.image};
+  return {...blank(), barcode:code, name:r.name, image:r.image, price:r.price || 0};
 }
 async function onCode(code){
   if(!code || $("#modal")) return;
@@ -568,7 +582,7 @@ async function onCode(code){
 
 /* ---------- SOTUV ---------- */
 function sellView(){
-  $("#view").innerHTML = head("Sotuv") + `<div class="scan" id="scanbox"><div id="reader"></div>${CORNERS}</div>
+  $("#view").innerHTML = head("Sotuv") + startCard() + `<div class="scan" id="scanbox"><div id="reader"></div>${CORNERS}</div>
   <label class="field">${ic("magnifer-linear",20)}<input id="manual" autocomplete="off" placeholder="Nomi yoki shtrix-kod (skaner shu yerga yozadi)" oninput="sq()" onkeydown="if(event.key==='Enter')manualAdd()"></label>
   <div id="sres"></div><div id="cart"></div>`;
   drawCart();
@@ -730,10 +744,11 @@ async function cancelReceipt(){
 
 /* ---------- MAHSULOTLAR ---------- */
 function productsView(){
-  $("#view").innerHTML = head("Mahsulotlar") + `<div class="chips" id="chips"></div>
+  $("#view").innerHTML = head("Mahsulotlar") + startCard() + `<div class="chips" id="chips"></div>
   <div class="row"><label class="field" style="margin:0">${ic("magnifer-linear",20)}<input id="q" placeholder="Nomi yoki shtrix-kod" oninput="drawProducts()"></label>
   <button class="btn auto" aria-label="Bozor narxlari" onclick="show('market')">${ic("tag-price-bold-duotone",26)}</button>
-  <button class="btn b auto" onclick="openForm(blank())">${ic("add-circle-bold",26)}</button></div><div id="plist" style="margin-top:12px"></div>`;
+  <button class="btn b auto" onclick="openForm(blank())">${ic("add-circle-bold",26)}</button></div>
+  ${me.role === "owner" ? `<button class="btn full" style="margin-top:10px" onclick="quickFill()">${ic("bolt-circle-bold",22)} Tez to'ldirish: tayyor ro'yxatdan qo'shish</button>` : ""}<div id="plist" style="margin-top:12px"></div>`;
   drawProducts();
 }
 function drawProducts(){
@@ -746,7 +761,7 @@ function drawProducts(){
   $("#plist").innerHTML = shown.length ? shown.map((p, i) => `<div class="card" onclick="openForm(shown[${i}])">${thumb(p)}
     <div class="grow"><b>${esc(p.name)}</b><small class="blue" style="font-weight:700">${money(p.price)}${me.role === "owner" && p.cost > 0 && p.price > 0 ? ` · marja ${Math.round((p.price - p.cost) / p.price * 1000) / 10}%` : ""}</small><small>${esc(p.barcode)}</small></div>
     <div class="right"><span class="tag ${p.stock<=S.low?"low":""}">${p.stock} ${esc(p.unit)}</span></div></div>`).join("")
-    : `<div class="empty">${ic("box-minimalistic-bold-duotone",54)}<div>Mahsulot yo'q</div><small>+ tugmasi, skaner yoki Sozlamalar > Excel'dan yuklash orqali qo'shing</small></div>`;
+    : `<div class="empty">${ic("box-minimalistic-bold-duotone",54)}<div>Mahsulot yo'q</div><small>«Tez to'ldirish» bilan tayyor ro'yxatdan qo'shing yoki + tugmasi, skaner orqali</small>${me.role === "owner" ? `<button class="btn b" style="margin-top:12px" onclick="quickFill()">${ic("bolt-circle-bold",22)} Tez to'ldirish</button>` : ""}</div>`;
 }
 function openForm(p, fromSell = false){
   closeForm();
@@ -827,6 +842,7 @@ async function autoName(){
   if(r.name && !$("#f_name").value.trim()){ $("#f_name").value = r.name; toast("Topildi: " + r.name); }
   else if(!r.name && !hadName) toast("Nom topilmadi, bo'sh qoldirsangiz ham bo'ladi", "danger-triangle-bold");
   if(r.image && !formImg) setImg(r.image);
+  if(r.price && !$("#f_price").value){ $("#f_price").value = r.price; margin(); toast("Bozor narxi qo'yildi: " + money(r.price) + ". Kerak bo'lsa o'zgartiring", "tag-price-bold"); }
   ($("#f_cost") && !$("#f_cost").value ? $("#f_cost") : $("#f_price"))?.focus();
 }
 function formScan(){
@@ -852,6 +868,93 @@ async function delProduct(code){
   const {error} = await sb.from("products").delete().eq("barcode", code);
   if(error) return toast(errMsg(error), "danger-triangle-bold");
   P.delete(code); cacheP(); closeForm(); drawProducts();
+}
+
+/* ---------- TEZ BOSHLASH: tayyor katalogdan bir zumda mahsulot qo'shish ---------- */
+const CAT_UZ = {"Косметика и гигиена":"Kosmetika, gigiyena","Печенье и выпечка":"Pechenye, pishiriqlar","Чай и кофе":"Choy, qahva","Снеки":"Sneklar, chips",
+  "Йогурты и десерты":"Yogurt, desertlar","Все для детей":"Bolalar uchun","Молочная продукция ":"Sut mahsulotlari","Молочная продукция":"Sut mahsulotlari",
+  "Шоколад и конфеты":"Shokolad, konfetlar","Масла, соусы и специи":"Yog', sous, ziravor","Сладости и жвачка":"Shirinlik, saqich","Газировка":"Gazli ichimliklar",
+  "Соки":"Sharbatlar","Стирка и уборка":"Kir yuvish, tozalash","Макароны и крупа":"Makaron, yorma","Быстро приготовить":"Tez tayyorlanadigan","Мороженое":"Muzqaymoq",
+  "Колбаса и сосиски":"Kolbasa, sosiska","Сыры":"Pishloqlar","Вода":"Suv","Зоотовары":"Hayvonlar uchun","Консервы":"Konservalar","Холодный чай и кофе":"Sovuq choy, qahva",
+  "Заморозка":"Muzlatilgan","Сухофрукты и орехи":"Quruq meva, yong'oq","Хлеб":"Non","Товары для дома":"Uy-ro'zg'or","Яйца":"Tuxum","Мясо":"Go'sht","Птица":"Parranda",
+  "Рыба и морепродукты":"Baliq","Фрукты и ягоды":"Meva","Овощи и зелень":"Sabzavot","Готовая еда":"Tayyor taom","Канцтовары":"Kanstovar","Сладости":"Shirinliklar"};
+const catUz = c => c ? (CAT_UZ[c] || CAT_UZ[c.trim()] || c.trim()) : "Boshqa";
+let CATALOG = null, qfCat = "", qfSel = new Set(), qfShown = [];
+function startCard(){
+  if(!me || me.role !== "owner" || P.size >= 30) return "";
+  const n = P.size, pct = Math.min(100, Math.round(n / 30 * 100));
+  return `<div class="qstart" onclick="quickFill()">${ic("bolt-circle-bold-duotone",40)}<div class="grow"><b>Do'koningizni 2 daqiqada to'ldiring</b>
+    <small>${n ? `${n} ta mahsulot bor.` : "Hali mahsulot yo'q."} Tayyor ro'yxatdan belgilang: nomi, rasmi va bozor narxi bilan qo'shiladi</small>
+    <div class="bar"><i style="width:${Math.max(4, pct)}%"></i></div></div>${ic("alt-arrow-right-linear",22)}</div>`;
+}
+async function loadCatalog(){
+  if(CATALOG) return CATALOG;
+  const all = [];
+  for(let f = 0; f < 20000; f += 1000){
+    const {data, error} = await T(sb.from("catalog").select("barcode,name,image,category,price").order("name").range(f, f + 999), 15000);
+    if(error) throw error;
+    all.push(...(data || []));
+    if(!data || data.length < 1000) break;
+  }
+  return CATALOG = all;
+}
+async function quickFill(){
+  if(!me || me.role !== "owner") return toast("Faqat do'kon egasi qo'sha oladi", "danger-triangle-bold");
+  closeForm();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div style="display:flex;flex-direction:column;overflow:hidden"><h1 style="margin-bottom:4px;font-size:22px">Tez to'ldirish</h1>
+    <small class="mute" style="margin-bottom:12px">Do'koningizda bor mahsulotlarni belgilang. Narxi Toshkent do'konlaridagi narx bilan qo'yiladi, keyin o'zgartirasiz.</small>
+    <label class="field" style="margin-bottom:8px">${ic("magnifer-linear",20)}<input id="qf_q" placeholder="Qidirish: coca, snickers, sut..." oninput="qfDraw()"></label>
+    <div class="chips" id="qf_cats" style="margin-bottom:6px"></div>
+    <div id="qf_list" style="overflow-y:auto;flex:1;min-height:120px"><div class="empty" style="padding:20px">Yuklanmoqda...</div></div>
+    <div class="row" style="margin-top:10px"><button class="btn b" id="qf_add" onclick="qfAdd()">Qo'shish</button><button class="btn auto" onclick="closeForm()">Yopish</button></div></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m);
+  qfSel = new Set(); qfCat = ""; qfBtn();
+  try{ await loadCatalog(); }
+  catch(e){ if($("#qf_list")) $("#qf_list").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone",44)}<div>Yuklab bo'lmadi</div><small>Internetni tekshirib, qayta oching</small></div>`; return; }
+  const cnt = {};
+  CATALOG.forEach(x => { const c = catUz(x.category); cnt[c] = (cnt[c] || 0) + 1; });
+  const cats = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+  qfCat = cats.find(c => /ichimlik|Shokolad/i.test(c)) || cats[0] || "";
+  $("#qf_cats") && ($("#qf_cats").innerHTML = cats.map(c => `<button class="chip" data-c="${esc(c)}" onclick="qfCat=this.dataset.c;$('#qf_q').value='';qfDraw()">${esc(c)} <span class="mute">${cnt[c]}</span></button>`).join(""));
+  qfDraw();
+}
+function qfDraw(){
+  if(!CATALOG || !$("#qf_list")) return;
+  const q = ($("#qf_q")?.value || "").trim().toLowerCase();
+  document.querySelectorAll("#qf_cats .chip").forEach(b => b.classList.toggle("on", !q && b.dataset.c === qfCat));
+  qfShown = CATALOG.filter(x => q ? (x.name.toLowerCase().includes(q) || x.barcode.includes(q)) : catUz(x.category) === qfCat).slice(0, 400);
+  const fresh = qfShown.filter(x => !P.has(x.barcode));
+  $("#qf_list").innerHTML = (fresh.length ? `<div class="qrow" onclick="qfAll()"><input type="checkbox" ${fresh.every(x => qfSel.has(x.barcode)) ? "checked" : ""} onclick="event.stopPropagation();qfAll()"><b>Hammasini belgilash (${fresh.length})</b></div>` : "")
+    + (qfShown.length ? qfShown.map((x, i) => P.has(x.barcode)
+      ? `<div class="qrow have">${ic("check-circle-bold",22)}${thumb(x, 20)}<div class="grow"><b>${esc(x.name)}</b><small>Do'koningizda bor</small></div></div>`
+      : `<div class="qrow" onclick="qfTog(${i})"><input type="checkbox" ${qfSel.has(x.barcode) ? "checked" : ""} onclick="event.stopPropagation();qfTog(${i})">${thumb(x, 20)}
+        <div class="grow"><b>${esc(x.name)}</b><small class="blue" style="font-weight:700">${money(x.price)}</small></div></div>`).join("")
+      : `<div class="empty" style="padding:20px">Topilmadi</div>`);
+}
+function qfTog(i){ const b = qfShown[i].barcode; qfSel.has(b) ? qfSel.delete(b) : qfSel.add(b); qfDraw(); qfBtn(); }
+function qfAll(){
+  const fresh = qfShown.filter(x => !P.has(x.barcode)), on = fresh.every(x => qfSel.has(x.barcode));
+  fresh.forEach(x => on ? qfSel.delete(x.barcode) : qfSel.add(x.barcode)); qfDraw(); qfBtn();
+}
+function qfBtn(){ const b = $("#qf_add"); if(b){ b.textContent = qfSel.size ? `${qfSel.size} ta mahsulotni qo'shish` : "Belgilang"; b.disabled = !qfSel.size; } }
+async function qfAdd(){
+  if(!qfSel.size) return;
+  const by = new Map(CATALOG.map(x => [x.barcode, x]));
+  const rows = [...qfSel].filter(b => !P.has(b)).map(b => { const x = by.get(b);
+    return {shop_id:me.shop_id, barcode:b, name:x.name, price:x.price || 0, stock:0, unit:/весов|на вес|, кг$/i.test(x.name) ? "kg" : "dona", image:x.image || null}; });
+  const btn = $("#qf_add"); if(btn){ btn.disabled = true; btn.textContent = "Qo'shilmoqda..."; }
+  for(let i = 0; i < rows.length; i += 300){
+    const chunk = rows.slice(i, i + 300);
+    const {error} = await T(sb.from("products").upsert(chunk, {onConflict:"shop_id,barcode"}), 30000).catch(e => ({error:e}));
+    if(error){ toast(errMsg(error), "danger-triangle-bold"); qfBtn(); return; }
+    chunk.forEach(p => P.set(p.barcode, {...p, cost:0}));
+  }
+  cacheP(); qfSel = new Set(); qfDraw(); qfBtn();
+  toast(`${rows.length} ta mahsulot qo'shildi. Narxlarni Mahsulotlar bo'limida tekshiring`);
+  if(tab === "products") drawProducts();
+  const sc = $(".qstart"); if(sc) sc.outerHTML = startCard() || "";
 }
 
 /* ---------- HISOBOT (egasi) ---------- */
