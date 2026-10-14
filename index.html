@@ -371,6 +371,12 @@ function printReceipt(r){
   el.innerHTML = `<div class="c"><b style="font-size:15px">${esc(shopName())}</b><br>${fmtT(r.at)}<br>Chek: ${esc(r.code)}${r.status === "canceled" ? "<br><b>BEKOR QILINGAN</b>" : ""}</div><hr>`
     + r.items.map(i => `<div>${esc(i.name)}</div><div class="r"><span>${i.qty} x ${n(i.price)}</span><span>${n(lt(i.qty, i.price))}</span></div>`).join("")
     + `<hr><div class="r"><b>JAMI</b><b>${money(r.total)}</b></div><hr><div class="c">${esc(S.foot)}</div>`;
+  // Chek printeri uchun qog'oz o'lchami: kengligi 58/80 mm, uzunligi chek matniga qarab (A4 bo'lib chiqmasin, chetlarda bo'sh joy qolmasin)
+  el.style.cssText += ";display:block;font:12px/1.35 \"Courier New\",monospace;padding:2mm";
+  const mm = Math.ceil(el.scrollHeight * 25.4 / 96) + 8;
+  el.style.display = "";
+  let st = $("#pgsz"); if(!st){ st = document.createElement("style"); st.id = "pgsz"; document.head.appendChild(st); }
+  st.textContent = `@page{size:${S.pw == 58 ? 58 : 80}mm ${mm}mm;margin:0}`;
   setTimeout(() => { if(!nativePrint()) window.print(); }, 80);
 }
 
