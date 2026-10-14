@@ -302,7 +302,6 @@ async function init(){
   if(me.role === "pending") return pendingView();
   cacheMe();
   await loadP(); show("sell"); flush();
-  sb.rpc("touch_seen").then(() => {}, () => {});                 // oxirgi faollik (egasi uchun statistika)
 }
 const cacheMe = () => { try{ localStorage.setItem("dme", JSON.stringify({p:me, s:SH})); }catch(e){} };
 async function refreshShop(){
@@ -534,17 +533,6 @@ const toggleScan = () => scanner ? stopScan() : startScan("scanbox", "reader", c
 
 /* ---------- NOMNI AVTOMATIK TOPISH ---------- */
 async function lookup(code){
-  // 1) Bizning katalog (Baraka, Korzinka ... do'konlaridan, har kuni yangilanadi): nom, rasm va bozor narxi
-  try{
-    const {data} = await T(sb.from("catalog").select("name,image,price").eq("barcode", code).maybeSingle(), 3500);
-    if(data && data.name) return {name:data.name, image:data.image || "", price:data.price || 0};
-  }catch(e){}
-  // 2) Boshqa do'konlar shu shtrix-kodni qanday nomlagan (faqat nom va rasm, narx emas)
-  try{
-    const {data} = await T(sb.rpc("barcode_name", {p_code:code}), 3500);
-    const r = data && data[0];
-    if(r && r.name) return {name:r.name, image:r.image || "", price:0};
-  }catch(e){}
   const one = async host => {
     const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4500);
     const r = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,quantity,image_front_small_url,image_small_url,image_front_url,image_url`, {signal:ctl.signal});
@@ -569,20 +557,19 @@ async function find(code){
   }catch(e){}
   toast("Qidirilmoqda...", "magnifer-linear");
   const r = await lookup(code);
-  return {...blank(), barcode:code, name:r.name, image:r.image, price:r.price || 0};
+  return {...blank(), barcode:code, name:r.name, image:r.image};
 }
 async function onCode(code){
   if(!code || $("#modal")) return;
   const p = await find(code);
-  if(p.isNew){ if($("#modal")) return; (me.role === "owner" || me.role === "admin") && tab === "sell" ? quickNew(p) : openForm(p, true); }
+  if(p.isNew){ if($("#modal")) return; openForm(p, true); if(p.name) toast("Topildi: " + p.name); }
   else { addCart(p); toast(p.name); }
 }
 
 /* ---------- SOTUV ---------- */
 function sellView(){
   $("#view").innerHTML = head("Sotuv") + `<div class="scan" id="scanbox"><div id="reader"></div>${CORNERS}</div>
-  <div class="row"><label class="field" style="margin:0">${ic("magnifer-linear",20)}<input id="manual" autocomplete="off" placeholder="Nomi yoki shtrix-kod" oninput="sq()" onkeydown="if(event.key==='Enter')manualAdd()"></label>
-  <button class="btn auto" style="padding:0 14px;font-weight:800" onclick="freeSum()">${ic("calculator-minimalistic-bold",22)} Summa</button></div><div style="height:12px"></div>
+  <label class="field">${ic("magnifer-linear",20)}<input id="manual" autocomplete="off" placeholder="Nomi yoki shtrix-kod (skaner shu yerga yozadi)" oninput="sq()" onkeydown="if(event.key==='Enter')manualAdd()"></label>
   <div id="sres"></div><div id="cart"></div>`;
   drawCart();
   if(S.auto) setTimeout(toggleScan, 300);
@@ -609,18 +596,17 @@ function drawCart(){
     <div class="grow"><b>${esc(c.name)}</b><small class="blue" style="font-weight:700">${money(c.price)} / ${esc(c.unit)}${isFrac(c.unit) ? " · " + money(lt(c.qty, c.price)) : ""}</small></div>
     ${isFrac(c.unit) ? `<button class="btn sm" onclick="editW(${i})">${fq(c.qty)} ${esc(c.unit)}</button>`
     : `<div class="qty"><button onclick="qty(${i},-1)">${ic("minus-circle-bold",28)}</button><b onclick="setQty(${i})">${c.qty}</b><button onclick="qty(${i},1)">${ic("add-circle-bold",28)}</button></div>`}</div>`).join("")
-    : `<div class="empty">${ic("cart-large-2-bold-duotone",54)}<div>Savat bo'sh</div><small>Skanerlang, nomini qidiring yoki «Summa» tugmasi bilan mahsulot kiritmasdan soting</small></div>`;
+    : `<div class="empty">${ic("cart-large-2-bold-duotone",54)}<div>Savat bo'sh</div><small>Skanerlang yoki nomini qidiring</small></div>`;
   let s = $("#slab");
   if(!s){ s = document.createElement("div"); s.id = "slab"; s.className = "slab"; document.body.appendChild(s); }
   s.innerHTML = `<div class="srow"><span class="mute">Jami</span><b>${money(total)}</b></div>
-  <div class="row"><button class="btn auto" style="padding:0 14px" aria-label="Skaner" onclick="toggleScan()">${ic("scanner-bold",24)}</button>
-  <button class="btn" ${cart.length && subOK() ? "" : "disabled"} onclick="sellDebt()">${ic("notebook-bold",20)} Nasiya</button>
+  <div class="row"><button class="btn" onclick="toggleScan()">${ic("scanner-bold",22)} Skaner</button>
   <button class="btn b" ${cart.length && subOK() ? "" : "disabled"} onclick="sell()">${subOK() ? "Sotish" : "Obuna tugagan"} ${ic("alt-arrow-right-bold",20)}</button></div>`;
 }
 function qty(i, d){
   const c = cart[i]; c.qty = Math.round((c.qty + d) * 1000) / 1000;
   if(c.qty <= 0) cart.splice(i, 1);
-  else if(c.stock > 0 && c.qty > c.stock) toast("Omborda faqat " + c.stock + " " + c.unit, "danger-triangle-bold");
+  else if(c.qty > c.stock) toast("Omborda faqat " + c.stock + " " + c.unit, "danger-triangle-bold");
   drawCart();
 }
 /* ---------- KG / LITR: SUMMA YOKI OG'IRLIK BILAN SOTISH ---------- */
@@ -688,95 +674,6 @@ async function sell(){
   cart = []; drawCart(); toast("Sotildi: " + money(total));
   if(S.print) printReceipt({code:code6(s.id), at:s.at, items, total});
   updBadge(); flush();
-  return {total, items};
-}
-
-/* ---------- MAHSULOT KIRITMASDAN SOTISH: erkin summa ---------- */
-function freeSum(){
-  closeForm();
-  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
-  m.innerHTML = `<div><h1 style="font-size:22px;margin-bottom:4px">Summa bilan sotish</h1>
-  <small class="mute" style="display:block;margin-bottom:12px">Mahsulot bazada bo'lmasa ham sotavering: summani yozing</small>
-  <label class="field">${ic("wallet-money-bold-duotone",20)}<input id="fs_sum" inputmode="numeric" placeholder="Summa, so'm" oninput="this.value=this.value.replace(/[^0-9]/g,'');$('#fs_show').textContent=this.value?money(+this.value):''" onkeydown="if(event.key==='Enter')fsOk()"></label>
-  <div class="amt" id="fs_show"></div>
-  <div class="chips">${[1000, 2000, 3000, 5000, 10000, 20000].map(v => `<button class="chip" onclick="$('#fs_sum').value=(+$('#fs_sum').value||0)+${v};$('#fs_show').textContent=money(+$('#fs_sum').value)">+${v / 1000} ming</button>`).join("")}</div>
-  <label class="field">${ic("tag-bold-duotone",20)}<input id="fs_name" placeholder="Nima sotildi? (ixtiyoriy: non, sut...)" onkeydown="if(event.key==='Enter')fsOk()"></label>
-  <div class="row"><button class="btn b" onclick="fsOk()">Savatga</button><button class="btn" onclick="closeForm()">Bekor</button></div></div>`;
-  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
-  document.body.appendChild(m);
-  setTimeout(() => $("#fs_sum")?.focus(), 200);
-}
-function fsOk(){
-  const v = digits($("#fs_sum").value), n = $("#fs_name").value.trim();
-  if(!(v > 0)) return toast("Summani yozing", "danger-triangle-bold");
-  cart.push({barcode:"SUMMA", name:n || "Mahsulot (summa)", price:v, qty:1, unit:"dona", stock:1e9, image:""});
-  closeForm(); if(tab === "sell") drawCart();
-}
-
-/* Yangi shtrix-kod sotuvda: faqat narxini so'raymiz, mahsulot o'zi saqlanadi */
-let qnP = null;
-function quickNew(p){
-  qnP = p; closeForm();
-  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
-  m.innerHTML = `<div><h1 style="font-size:22px;margin-bottom:4px">Yangi mahsulot</h1>
-  <small class="mute" style="display:block;margin-bottom:12px">Bir marta narxini yozing: keyingi safar skanerlaganda o'zi chiqadi</small>
-  <div class="card" style="cursor:default">${thumb(p)}<div class="grow"><small>${esc(p.barcode)}</small></div></div>
-  <label class="field">${ic("tag-bold-duotone",20)}<input id="qn_name" placeholder="Nomi" value="${esc(p.name || "")}"></label>
-  <label class="field">${ic("wallet-money-bold-duotone",20)}<input id="qn_price" inputmode="numeric" placeholder="Sotilish narxi, so'm" value="${p.price || ""}" onkeydown="if(event.key==='Enter')qnOk()"></label>
-  <div class="row"><button class="btn b" onclick="qnOk()">Saqlash va savatga</button><button class="btn" onclick="closeForm()">Bekor</button></div>
-  <button class="link" style="padding:10px 0 0" onclick="closeForm();openForm(qnP,true)">Batafsil (kelish narxi, qoldiq...)</button></div>`;
-  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
-  document.body.appendChild(m);
-  setTimeout(() => (p.name ? $("#qn_price") : $("#qn_name"))?.focus(), 200);
-}
-async function qnOk(){
-  const price = digits($("#qn_price").value), name = $("#qn_name").value.trim() || "Nomsiz " + qnP.barcode.slice(-4);
-  if(!(price > 0)) return toast("Narxini yozing", "danger-triangle-bold");
-  const p = {shop_id:me.shop_id, barcode:qnP.barcode, name, price, stock:0, unit:"dona", image:qnP.image || null};
-  const {error} = await T(sb.from("products").upsert(p, {onConflict:"shop_id,barcode"}), 8000).catch(e => ({error:e}));
-  if(error) return toast(errMsg(error), "danger-triangle-bold");
-  P.set(p.barcode, {...p, cost:0}); cacheP(); closeForm(); addCart(P.get(p.barcode)); toast("Saqlandi: " + name);
-}
-
-/* Nasiyaga sotish: chek + qarz daftariga yozuv bitta tugmada */
-function sellDebt(){
-  if(!cart.length) return;
-  const total = cart.reduce((s, c) => s + lt(c.qty, c.price), 0);
-  closeForm();
-  if(!D.length) try{ D = JSON.parse(localStorage.getItem("dd") || "[]"); }catch(e){}
-  const names = [...new Set(D.filter(d => d.dir === "in").map(d => d.person))];
-  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
-  m.innerHTML = `<div><h1 style="font-size:22px;margin-bottom:4px">Nasiyaga berish</h1>
-  <small class="mute" style="display:block;margin-bottom:12px">${money(total)} · chek saqlanadi va Qarzlar daftariga yoziladi</small>
-  <datalist id="sdn">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
-  <label class="field">${ic("user-bold-duotone",20)}<input id="sd_name" list="sdn" placeholder="Kimga? (ism)" autocomplete="off" oninput="sdPhone()"></label>
-  <label class="field">${ic("phone-bold-duotone",20)}<input id="sd_phone" inputmode="tel" placeholder="Telefon (ixtiyoriy)"></label>
-  <div class="row"><button class="btn b" id="sd_ok" onclick="sdOk()">${ic("notebook-bold",20)} Nasiyaga yozish</button><button class="btn" onclick="closeForm()">Bekor</button></div></div>`;
-  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
-  document.body.appendChild(m);
-  setTimeout(() => $("#sd_name")?.focus(), 200);
-  if(!D.length) loadD();
-}
-function sdPhone(){
-  const n = nkey($("#sd_name").value), ex = D.find(d => d.dir === "in" && nkey(d.person) === n && d.phone);
-  if(ex && !$("#sd_phone").value) $("#sd_phone").value = ex.phone;
-}
-async function sdOk(){
-  let person = $("#sd_name").value.trim().replace(/\s+/g, " ");
-  if(!person) return toast("Ismni yozing", "danger-triangle-bold");
-  const ex = D.find(d => d.dir === "in" && nkey(d.person) === nkey(person)); if(ex) person = ex.person;
-  const phone = $("#sd_phone").value.trim() || null;
-  const b = $("#sd_ok"); if(b) b.disabled = true;
-  const note = cart.map(c => c.name + (c.qty !== 1 ? " ×" + fq(c.qty) : "")).join(", ").slice(0, 200);
-  const r = await sell();
-  if(!r){ if(b) b.disabled = false; return; }
-  const row = {person, phone, dir:"in", kind:"debt", amount:Math.round(r.total), note};
-  const {error} = await T(sb.from("debts").insert([row]), 10000).catch(e => ({error:e}));
-  closeForm();
-  if(error) return toast("Chek saqlandi, lekin qarz yozilmadi: " + errMsg(error), "danger-triangle-bold");
-  D.unshift({...row, id:"tmp" + Date.now(), created_at:new Date().toISOString()});
-  try{ localStorage.setItem("dd", JSON.stringify(D)); }catch(e){}
-  toast(person + ": " + money(r.total) + " nasiyaga yozildi");
 }
 
 /* ---------- CHEKLAR ---------- */
@@ -930,7 +827,6 @@ async function autoName(){
   if(r.name && !$("#f_name").value.trim()){ $("#f_name").value = r.name; toast("Topildi: " + r.name); }
   else if(!r.name && !hadName) toast("Nom topilmadi, bo'sh qoldirsangiz ham bo'ladi", "danger-triangle-bold");
   if(r.image && !formImg) setImg(r.image);
-  if(r.price && !$("#f_price").value){ $("#f_price").value = r.price; margin(); toast("Bozor narxi qo'yildi: " + money(r.price) + ". Kerak bo'lsa o'zgartiring", "tag-price-bold"); }
   ($("#f_cost") && !$("#f_cost").value ? $("#f_cost") : $("#f_price"))?.focus();
 }
 function formScan(){
@@ -1231,10 +1127,8 @@ function openDebt(i){
   <div class="stat" style="margin-top:12px;${p.dir === "out" ? "background:var(--red)" : ""}"><small>${b === 0 ? "Qarz yopilgan" : b < 0 ? "Ortiqcha to'langan" : "Qolgan qarz"}</small><div class="big">${money(Math.abs(b))}</div></div>
   <div class="row" style="margin-bottom:10px"><button class="btn" onclick="debtForm([{person:dCur.name,phone:dCur.phone,dir:dCur.dir,kind:'debt'}])">${ic("add-circle-bold",20)} ${p.dir === "in" ? "Nasiya" : "Qarz"}</button>
   <button class="btn b" onclick="debtForm([{person:dCur.name,phone:dCur.phone,dir:dCur.dir,kind:'pay',amount:Math.max(0,Math.round(dCur.bal))||''}])">${ic("wallet-money-bold",20)} To'lov</button></div>
-  ${b > 0 ? `<button class="btn full" style="margin-bottom:10px;background:#16a34a;color:#fff;border-color:#16a34a" onclick="debtClose()">${ic("check-circle-bold",20)} ${p.dir === "in" ? "Hammasini to'ladi" : "Hammasini to'ladim"}: ${money(b)}</button>` : ""}
-  <div class="row" style="margin-bottom:6px">${ph ? `<a class="btn" style="text-decoration:none" href="tel:${esc(ph)}">${ic("phone-bold",20)} Qo'ng'iroq</a>` : ""}
-  ${p.dir === "in" && b > 0 ? (ph ? `<a class="btn" style="text-decoration:none" href="sms:${esc(ph)}?&body=${encodeURIComponent(sms)}">${ic("chat-round-dots-bold",20)} SMS</a>` : "")
-    + `<a class="btn" style="text-decoration:none" target="_blank" href="https://t.me/share/url?url=${encodeURIComponent(" ")}&text=${encodeURIComponent(sms)}">${ic("plain-bold",20)} Telegram</a>` : ""}</div>
+  ${ph ? `<div class="row" style="margin-bottom:6px"><a class="btn" style="text-decoration:none" href="tel:${esc(ph)}">${ic("phone-bold",20)} Qo'ng'iroq</a>
+  ${p.dir === "in" && b > 0 ? `<a class="btn" style="text-decoration:none" href="sms:${esc(ph)}?&body=${encodeURIComponent(sms)}">${ic("chat-round-dots-bold",20)} Eslatma SMS</a>` : ""}</div>` : ""}
   <h2>Tarix</h2>
   ${p.rows.map(r => `<div class="line"><span>${KL[r.dir][r.kind]}<small>${fmtT(r.created_at)}${r.note ? " · " + esc(r.note) : ""}</small></span>
     <span style="display:flex;align-items:center;gap:6px"><b style="color:${r.kind === "pay" ? "#16a34a" : "var(--ink)"}">${r.kind === "pay" ? "−" : "+"}${money(r.amount)}</b>
@@ -1242,14 +1136,6 @@ function openDebt(i){
   <button class="btn full" style="margin-top:16px" onclick="closeForm()">Yopish</button></div>`;
   m.addEventListener("click", e => { if(e.target === m) closeForm(); });
   document.body.appendChild(m);
-}
-async function debtClose(){
-  const p = dCur; if(!p) return;
-  const amt = Math.round(p.bal); if(!(amt > 0)) return;
-  if(!confirm(p.name + ": " + money(amt) + " to'liq to'landimi?")) return;
-  const {error} = await T(sb.from("debts").insert([{person:p.name, phone:p.phone || null, dir:p.dir, kind:"pay", amount:amt, note:"To'liq yopildi"}]), 10000).catch(e => ({error:e}));
-  if(error) return toast(errMsg(error), "danger-triangle-bold");
-  closeForm(); toast("Qarz yopildi"); await loadD(); if(tab === "debts") drawDebts();
 }
 async function delDebt(id){
   if(!confirm("Bu yozuv o'chirilsinmi?")) return;
