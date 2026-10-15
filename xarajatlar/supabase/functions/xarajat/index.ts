@@ -53,8 +53,8 @@ const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g,
 /* ---------------- turlar ---------------- */
 const CATS: Record<string, Record<string, [string, string]>> = {
   dokon: {
-    firma: ["🚚", "Firmaga to'lov"], svet: ["⚡", "Svet"], gaz: ["🔥", "Gaz"], soliq: ["🧾", "Soliq"],
-    ijara: ["🏠", "Ijara"], oylik: ["👷", "Ish haqi"], boshqa: ["📦", "Boshqa"],
+    firma: ["🚚", "Firmaga to'lov"], tovar: ["📦", "Tovar xaridi"], svet: ["⚡", "Svet"], gaz: ["🔥", "Gaz"], soliq: ["🧾", "Soliq"],
+    ijara: ["🏠", "Ijara"], oylik: ["👷", "Ish haqi"], boshqa: ["🧾", "Boshqa"],
   },
   shaxsiy: {
     oziq: ["🛒", "Oziq-ovqat"], transport: ["🚕", "Transport"], uy: ["🏡", "Uy-ro'zg'or"], kommunal: ["💡", "Kommunal"],
@@ -66,7 +66,7 @@ const SCOPE: Record<string, string> = { dokon: "🏪 Do'kon", shaxsiy: "👤 Sha
 const ALL_CATS = [...new Set([...Object.keys(CATS.dokon), ...Object.keys(CATS.shaxsiy)])];
 const catLabel = (scope: string, cat: string) => { const c = CATS[scope]?.[cat]; return c ? `${c[0]} ${c[1]}` : `🧩 ${cat}`; };
 // Do'kon <-> shaxsiy almashtirganda turini moslash
-const SWAP: Record<string, string> = { svet: "kommunal", gaz: "kommunal", soliq: "boshqa", ijara: "uy", oylik: "boshqa", firma: "boshqa", kommunal: "svet", uy: "boshqa" };
+const SWAP: Record<string, string> = { svet: "kommunal", gaz: "kommunal", soliq: "boshqa", ijara: "uy", oylik: "boshqa", firma: "boshqa", tovar: "uy", kommunal: "svet", uy: "boshqa", oziq: "tovar" };
 const swapCat = (to: string, cat: string) => (CATS[to][cat] ? cat : CATS[to][SWAP[cat]] ? SWAP[cat] : "boshqa");
 
 function cleanItem(x: Row, raw: string | null, source: string) {
@@ -84,14 +84,17 @@ function cleanItem(x: Row, raw: string | null, source: string) {
 const SYSTEM = (d: string) => `Sen o'zbek tilida gapiradigan do'kon egasining xarajat hisobchisisan. Bugun ${d}.
 Foydalanuvchi xarajatlarini oddiy gap bilan (ba'zan rus so'zlari aralash, xatolar bilan) yozadi yoki aytadi. Har bir alohida xarajat uchun bitta yozuv chiqar.
 
-scope:
-- "dokon" — do'kon/magazin xarajati: firmaga/optomchiga/ta'minotchiga to'lov, tovar uchun pul, do'kon svet/gaz puli, soliq, do'kon ijarasi, sotuvchi/ishchi oyligi.
-- "shaxsiy" — oila va o'zi uchun: oziq-ovqat (uyga), taksi/benzin, uy-ro'zg'or, uy kommunal (uy svet/gaz/suv), telefon/internet, kiyim, dori/shifokor, o'qish, dam olish.
-Agar "uy", "uyga", "oilaga", "bolalarga" desa — shaxsiy. Firma nomi, "tovar", "do'kon", "magazin", "soliq", "sotuvchi" — dokon.
-Faqat "svet", "gaz", "ijara" deb aniq ko'rsatilmagan bo'lsa — dokon deb hisobla.
+scope — JUDA MUHIM QOIDA:
+- Sukut bo'yicha har doim "dokon".
+- Faqat foydalanuvchi o'sha xarajat haqida ANIQ aytsa "shaxsiy" qil: "uyga", "uy uchun", "uyimga", "o'zimga", "o'zim uchun", "shaxsiy", "oilaga", "oilam uchun".
+- Bu so'zlar bo'lmasa — o'zingdan taxmin qilma, hatto taksi, ovqat, dadam/opam uchun bo'lsa ham "dokon" yoz.
+- Bitta gapda bir nechta xarajat bo'lsa, har biri uchun alohida qaror qil (shaxsiy so'z faqat o'zi tegishli xarajatga ta'sir qiladi).
 
 cat (scope ga mos):
-- dokon: firma, svet, gaz, soliq, ijara, oylik, boshqa
+- dokon: firma, tovar, svet, gaz, soliq, ijara, oylik, boshqa
+  · firma — firma/optomchi nomi aytilgan to'lov (nomini "firm" ga yoz)
+  · tovar — sotish uchun mahsulot/tovar olish, firma nomi aytilmagan (sigaret, qop, paket, ichimlik, non, shirinlik va h.k.)
+  · boshqa — do'konga tegishli qolgan hammasi (taksi, ovqat, odamga berilgan pul va h.k.)
 - shaxsiy: oziq, transport, uy, kommunal, aloqa, kiyim, soglik, talim, dam, boshqa
 Firmaga to'lovda firma nomini "firm" ga yoz (bosh harf bilan, lotin yozuvida).
 
@@ -229,7 +232,8 @@ async function transcribe(b64: string, mime: string): Promise<string> {
 
 /* ---------------- Oddiy tahlilchi (Claude kaliti bo'lmasa yoki ishlamasa) ---------------- */
 const KW: [RegExp, string, string][] = [
-  [/firma|optom|ta'?minot|tovar|zakaz|postavsh|dastavka/i, "dokon", "firma"],
+  [/firma|optom|ta'?minot|postavsh/i, "dokon", "firma"],
+  [/tovar|sigaret|qop|paket|ichimlik|zakaz|mahsulot|shirinlik/i, "dokon", "tovar"],
   [/soliq|nalog/i, "dokon", "soliq"],
   [/oylik|ish ?haqi|zarplat|sotuvchi|ishchi/i, "dokon", "oylik"],
   [/ijara|arenda/i, "dokon", "ijara"],
@@ -257,11 +261,9 @@ function simpleParse(text: string): { items: Row[]; reply: string } {
     const amount = parseSum(seg);
     if (!amount) continue;
     const k = KW.find(([re]) => re.test(seg));
-    let scope = k ? k[1] : "dokon", cat = k ? k[2] : "boshqa";
-    if (/\buy(ga|da|ni|imiz)?\b|oila|bola/i.test(seg)) {
-      scope = "shaxsiy";
-      cat = cat === "svet" || cat === "gaz" ? "kommunal" : cat === "ijara" ? "uy" : CATS.shaxsiy[cat] ? cat : "boshqa";
-    }
+    const scope = /\buy(ga|imga|im|imiz)?\b|uy uchun|o'?zimga|o'?zim uchun|shaxsiy|oilaga|oilam/i.test(seg) ? "shaxsiy" : "dokon";
+    let cat = k ? k[2] : "boshqa";
+    if (!CATS[scope][cat]) cat = swapCat(scope, cat);
     const fm = cat === "firma" ? seg.match(/([A-Za-z\u0400-\u04FF][\w'-]*(?:\s[A-Z][\w'-]*)?)\s+firma/i) : null;
     const note = seg.replace(/\d+(?:[.,\s]\d+)*\s*(mln|million|milion|ming|k|so'?m|sum)?/gi, "").replace(/\s+/g, " ").trim().slice(0, 60);
     items.push({ scope, cat, amount, firm: fm ? fm[1][0].toUpperCase() + fm[1].slice(1) : "", note, date });
