@@ -213,7 +213,7 @@ async function paid(){
   }catch(e){ toast("Internet yo'q: qo'ng'iroq qiling " + SUPPORT.phone, "danger-triangle-bold"); }
 }
 // ====================================================
-const VER = "1.0.0";
+const VER = "1.1.0";
 let RECOVERY = /type=recovery/.test(location.hash); // parolni tiklash havolasidan kelgan
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = s => document.querySelector(s);
@@ -489,19 +489,19 @@ async function leaveShop(){ await sb.rpc("leave_shop"); ob = "join"; init(); }
 async function logout(){
   await stopScan(); $("#slab")?.remove();
   try{ await T(sb.auth.signOut(), 4000); }catch(e){}
-  try{ localStorage.removeItem("dme"); localStorage.removeItem("dp"); localStorage.removeItem("dd"); }catch(e){}
-  me = null; SH = null; cart = []; P = new Map(); D = []; ADDR = null; mq = ""; loginView();
+  try{ localStorage.removeItem("dme"); localStorage.removeItem("dp"); localStorage.removeItem("dd"); localStorage.removeItem("dx"); }catch(e){}
+  me = null; SH = null; cart = []; P = new Map(); D = []; EX = []; ADDR = null; mq = ""; loginView();
 }
 
 /* ---------- ASOSIY ---------- */
 function show(t){
   stopScan(); $("#slab")?.remove(); tab = t;
-  const hl = t === "admins" ? "set" : t === "market" ? "products" : t;
+  const hl = t === "admins" ? "set" : t === "market" ? "products" : t === "exp" ? (me.role === "owner" ? "report" : "set") : t;
   const tabs = [["sell","cart-large-2-bold-duotone","Sotuv"], ["rec","bill-list-bold-duotone","Cheklar"], ["products","box-bold-duotone","Mahsulot"], ["debts","notebook-bold-duotone","Qarzlar"]];
   if(me.role === "owner") tabs.push(["report","chart-2-bold-duotone","Hisobot"]);
   tabs.push(["set","settings-bold-duotone","Sozlama"]);
   $("#app").innerHTML = `<div id="view"></div><nav>${tabs.map(([k,i,l]) => `<button class="${k===hl?"on":""}" onclick="show('${k}')">${ic(i,26)}${l}</button>`).join("")}</nav>`;
-  ({sell:sellView, rec:receiptsView, products:productsView, debts:debtsView, market:marketView, report:reportView, set:setView, admins:adminsView})[t]();
+  ({sell:sellView, rec:receiptsView, products:productsView, debts:debtsView, market:marketView, report:reportView, set:setView, admins:adminsView, exp:expensesView})[t]();
   updBadge();
 }
 function banner(){
@@ -882,9 +882,13 @@ async function reportView(){
   let top = [];
   try{ const {data} = await T(sb.rpc("top_products", {p_from:from.toISOString(), p_to:new Date(+d0 + 864e5).toISOString()})); top = data || []; }catch(e){}
   const tm = Math.max(...top.map(t => +t.out_qty), 1);
+  await loadEx();
+  const exT = exSum(ds(d0)), exM = exSum(ds(m0));
   $("#rep").className = "";
   $("#rep").innerHTML = `<div class="stat"><small>Bugungi savdo · ${td.cnt} ta chek</small><div class="big">${money(+td.total)}</div>${hasP ? `<small style="display:block;margin-top:6px">Bugungi foyda: <b style="color:#fff">${money(+(td.profit || 0))}</b></small>` : ""}</div>
   <div class="card"><div class="ico">${ic("calendar-bold-duotone",24)}</div><div class="grow"><b>Shu oy</b><small>${moC} ta chek${hasP ? " · foyda " + money(moP) : ""}</small></div><b class="right">${money(moS)}</b></div>
+  <div class="card" onclick="show('exp')"><div class="ico" style="background:var(--redl);color:var(--red)">${ic("wallet-money-bold-duotone",24)}</div><div class="grow"><b>Xarajatlar</b><small>Bugun ${money(exT)} · firma, svet, soliq...</small></div><b class="right" style="color:var(--red)">−${money(exM)}</b>${arrow}</div>
+  ${hasP ? `<div class="card"><div class="ico">${ic("graph-up-bold-duotone",24)}</div><div class="grow"><b>Sof foyda (shu oy)</b><small>Foyda ${money(moP)} − xarajat ${money(exM)}</small></div><b class="right" style="color:${moP - exM < 0 ? "var(--red)" : "#16a34a"}">${money(moP - exM)}</b></div>` : ""}
   ${hasP ? `<small style="margin:-2px 0 8px 4px">Foyda faqat kelish narxi kiritilgan mahsulotlar bo'yicha hisoblanadi</small>` : ""}
   <h2>Oxirgi 7 kun</h2><div class="bars">${days.map((d, i) => `<div><i style="height:${Math.round(tot[i] / mx * 85)}%"></i><small>${d.getDate()}</small></div>`).join("")}</div>
   <h2>Eng ko'p sotilganlar</h2>
@@ -924,6 +928,8 @@ function setView(){
   <label class="field">${ic("document-bold-duotone",20)}<select style="border:0;margin:0;padding:14px 0" onchange="S.pw=+this.value;saveS();toast('Saqlandi')"><option value="80" ${S.pw != 58 ? "selected" : ""}>Qog'oz kengligi: 80 mm</option><option value="58" ${S.pw == 58 ? "selected" : ""}>Qog'oz kengligi: 58 mm</option></select></label>
   <label class="field">${ic("pen-bold-duotone",20)}<input value="${esc(S.foot)}" placeholder="Chek pastidagi yozuv" onchange="S.foot=this.value.trim();saveS();toast('Saqlandi')"></label>
   <button class="btn full" onclick="printReceipt({code:'TEST',at:new Date().toISOString(),items:[{name:'Sinov mahsulot',qty:1,price:1000}],total:1000})">${ic("printer-bold",20)} Sinov chek</button>
+  <h2>Hisob-kitob</h2>
+  <div class="card" onclick="show('exp')"><div class="ico">${ic("wallet-money-bold-duotone",24)}</div><div class="grow"><b>Xarajatlar</b><small>Firmaga to'lov, svet, gaz, soliq, ijara, ish haqi</small></div>${arrow}</div>
   <h2>Ma'lumotlar</h2>
   <div class="card" onclick="flush().then(()=>toast(Q.length?'Sinxronlanmagan: '+Q.length:'Hammasi sinxron'))"><div class="ico">${ic("cloud-upload-bold-duotone",24)}</div><div class="grow"><b>Sinxronlash</b><small>Kutayotgan cheklar: ${Q.length}</small></div></div>
   ${Qf.length ? `<div class="card" onclick="retryFailed()"><div class="ico" style="background:var(--redl);color:var(--red)">${ic("danger-triangle-bold-duotone",24)}</div><div class="grow"><b>Qabul qilinmagan cheklar: ${Qf.length}</b><small>${esc(Qf[0].err || "")} · bosib qayta yuboring</small></div></div>` : ""}
@@ -1191,6 +1197,95 @@ async function saveDebts(){
   if(error){ if(b) b.disabled = false; return toast(/relation|schema cache/i.test(error.message || "") ? "Avval Supabase'da qarzlar.sql ni ishga tushiring" : errMsg(error), "danger-triangle-bold"); }
   closeForm(); toast(rows.length > 1 ? rows.length + " ta yozuv saqlandi" : "Saqlandi");
   df = rows[0].dir; await loadD(); if(tab === "debts") drawDebts();
+}
+
+/* ---------- XARAJATLAR: firmaga to'lov, svet, gaz, soliq, ijara, ish haqi ---------- */
+let EX = [], ep = "today", eItem = {};
+const EC = {firma:["Firmaga to'lov","delivery-bold-duotone"], svet:["Svet","lightbulb-bolt-bold-duotone"], gaz:["Gaz","fire-bold-duotone"],
+  soliq:["Soliq","document-text-bold-duotone"], ijara:["Ijara","home-2-bold-duotone"], oylik:["Ish haqi","users-group-rounded-bold-duotone"], boshqa:["Boshqa","wallet-bold-duotone"]};
+const dAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString("sv-SE"); };
+const monthStart = () => today().slice(0, 8) + "01";
+const exSum = from => EX.filter(r => r.spent_on >= from).reduce((a, r) => a + +r.amount, 0);
+async function loadEx(){
+  try{
+    const {data, error} = await T(sb.from("expenses").select("*").gte("spent_on", dAgo(62)).order("spent_on", {ascending:false}).order("created_at", {ascending:false}).limit(5000), 12000);
+    if(error) throw error;
+    EX = data || []; try{ localStorage.setItem("dx", JSON.stringify(EX)); }catch(e){}
+    return "";
+  }catch(e){
+    if(!EX.length) try{ EX = JSON.parse(localStorage.getItem("dx") || "[]"); }catch(x){}
+    return "Internet yo'q: oxirgi saqlangan ma'lumot ko'rsatildi";
+  }
+}
+async function expensesView(){
+  $("#view").innerHTML = head("Xarajatlar") + `<div class="chips" id="xchips"></div><div id="xsum"></div>
+  <button class="btn b full" style="margin-bottom:12px" onclick="exForm()">${ic("add-circle-bold",22)} Xarajat qo'shish</button>
+  <div id="xlist" class="empty">Yuklanmoqda...</div>`;
+  if(!EX.length) try{ EX = JSON.parse(localStorage.getItem("dx") || "[]"); }catch(e){}
+  drawEx();
+  const err = await loadEx();
+  if(tab === "exp") drawEx(err);
+}
+function drawEx(err = ""){
+  if(!$("#xlist")) return;
+  const P3 = [["today","Bugun"],["week","7 kun"],["month","Shu oy"]];
+  $("#xchips").innerHTML = P3.map(([k, l]) => `<button class="chip ${ep===k?"on":""}" onclick="ep='${k}';drawEx()">${l}</button>`).join("");
+  const from = ep === "today" ? today() : ep === "week" ? dAgo(6) : monthStart();
+  const rows = EX.filter(r => r.spent_on >= from), sum = rows.reduce((a, r) => a + +r.amount, 0);
+  const byC = {}; rows.forEach(r => byC[r.cat] = (byC[r.cat] || 0) + +r.amount);
+  const cats = Object.entries(byC).sort((a, b) => b[1] - a[1]), cm = Math.max(...cats.map(c => c[1]), 1);
+  $("#xsum").innerHTML = `<div class="stat" style="background:var(--red)"><small>${P3.find(p => p[0] === ep)[1]}gi xarajat · ${rows.length} ta</small><div class="big">${money(sum)}</div></div>`
+    + cats.map(([c, v]) => `<div class="card"><div class="ico">${ic(EC[c][1],24)}</div><div class="grow"><b>${EC[c][0]}</b><div class="pbar"><i style="width:${Math.round(v / cm * 100)}%"></i></div></div><b class="right">${money(v)}</b></div>`).join("");
+  const days = {}; rows.forEach(r => (days[r.spent_on] ||= []).push(r));
+  const dn = d => d === today() ? "Bugun" : d === dAgo(1) ? "Kecha" : fmtD(d);
+  const L = $("#xlist"); L.className = "";
+  L.innerHTML = (err ? `<small style="margin-bottom:8px">${esc(err)}</small>` : "") + (rows.length ? Object.entries(days).map(([d, rs]) =>
+    `<h2 style="display:flex;justify-content:space-between"><span>${dn(d)}</span><span>${money(rs.reduce((a, r) => a + +r.amount, 0))}</span></h2>` + rs.map(r => `<div class="card">
+      <div class="ico" style="background:var(--redl);color:var(--red)">${ic(EC[r.cat]?.[1] || "wallet-bold-duotone",24)}</div>
+      <div class="grow"><b>${esc(r.firm || EC[r.cat]?.[0] || r.cat)}</b><small>${r.firm ? EC.firma[0] + " · " : ""}${esc(r.note || "")}${r.note ? " · " : ""}${new Date(r.created_at).toLocaleTimeString("ru-RU", {hour:"2-digit", minute:"2-digit"})}</small></div>
+      <div class="right" style="display:flex;align-items:center;gap:6px"><b style="color:var(--red)">−${money(r.amount)}</b>
+      ${me.role === "owner" || r.created_by === me.id ? `<button class="btn red sm" onclick="delEx('${esc(r.id)}')">${ic("trash-bin-trash-bold",18)}</button>` : ""}</div></div>`).join("")).join("")
+    : `<div class="empty">${ic("wallet-money-bold-duotone",54)}<div>Xarajat yo'q</div><small>«Xarajat qo'shish» tugmasini bosing</small></div>`);
+}
+function exForm(){
+  eItem = {cat:"firma", amount:"", firm:"", note:"", day:today()};
+  closeForm();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div id="xform"></div>`;
+  m.addEventListener("click", e => { if(e.target === m) closeForm(); });
+  document.body.appendChild(m); drawXF();
+  setTimeout(() => ($("#xfirm") || $("#xamt"))?.focus(), 250);
+}
+function drawXF(){
+  const firms = [...new Set(EX.map(r => r.firm).filter(Boolean))];
+  $("#xform").innerHTML = `<h1 style="margin-bottom:12px;font-size:22px">Yangi xarajat</h1>
+  <div class="chips" style="flex-wrap:wrap">${Object.entries(EC).map(([k, [l]]) => `<button class="chip ${eItem.cat===k?"on":""}" onclick="eItem.cat='${k}';drawXF()">${l}</button>`).join("")}</div>
+  ${eItem.cat === "firma" ? `<datalist id="xfirms">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>
+  <label class="field">${ic("delivery-bold-duotone",20)}<input id="xfirm" list="xfirms" placeholder="Firma nomi" autocomplete="off" value="${esc(eItem.firm)}" oninput="eItem.firm=this.value"></label>` : ""}
+  <label class="field">${ic("wallet-money-bold-duotone",20)}<input id="xamt" inputmode="numeric" placeholder="Summa" value="${eItem.amount ? digits(eItem.amount).toLocaleString("ru-RU") : ""}" oninput="eItem.amount=digits(this.value);$('#xa').textContent=eItem.amount?money(eItem.amount):''"></label>
+  <div class="amt" id="xa">${eItem.amount ? money(eItem.amount) : ""}</div>
+  <label class="field">${ic("calendar-bold-duotone",20)}<input type="date" value="${eItem.day}" max="${today()}" onchange="eItem.day=this.value||today()"></label>
+  <label class="field">${ic("pen-bold-duotone",20)}<input placeholder="Izoh (ixtiyoriy)" value="${esc(eItem.note)}" oninput="eItem.note=this.value"></label>
+  <div class="row" style="margin-top:4px"><button class="btn b" id="xsave" onclick="saveEx()">${ic("check-circle-bold",20)} Saqlash</button><button class="btn" onclick="closeForm()">Bekor</button></div>`;
+}
+async function saveEx(){
+  const r = {cat:eItem.cat, amount:digits(eItem.amount), firm:eItem.cat === "firma" ? (String(eItem.firm).trim().replace(/\s+/g, " ") || null) : null,
+    note:String(eItem.note).trim() || null, spent_on:eItem.day || today()};
+  if(r.cat === "firma" && !r.firm) return toast("Firma nomini kiriting", "danger-triangle-bold");
+  if(!(r.amount > 0)) return toast("Summani kiriting", "danger-triangle-bold");
+  if(r.firm){ const ex = EX.find(x => x.firm && nkey(x.firm) === nkey(r.firm)); if(ex) r.firm = ex.firm; }
+  const b = $("#xsave"); if(b) b.disabled = true;
+  const {error} = await T(sb.from("expenses").insert(r), 10000).catch(e => ({error:e}));
+  if(error){ if(b) b.disabled = false; return toast(errMsg(error), "danger-triangle-bold"); }
+  closeForm(); toast("Saqlandi");
+  if(r.spent_on < (ep === "today" ? today() : ep === "week" ? dAgo(6) : monthStart())) ep = "month";
+  await loadEx(); if(tab === "exp") drawEx();
+}
+async function delEx(id){
+  if(!confirm("Bu xarajat o'chirilsinmi?")) return;
+  const {error} = await T(sb.from("expenses").delete().eq("id", id), 8000).catch(e => ({error:e}));
+  if(error) return toast(errMsg(error), "danger-triangle-bold");
+  toast("O'chirildi"); await loadEx(); drawEx();
 }
 
 /* Ovoz: Telegramdagidek bosib turib gapiriladi, qo'yib yuborilganda matnga aylanadi */
