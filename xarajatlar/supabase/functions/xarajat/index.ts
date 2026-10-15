@@ -10,7 +10,7 @@ type Row = Record<string, any>;
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const db = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
-const TG_TOKEN = Deno.env.get("XR_BOT_TOKEN") ?? "";
+let TG_TOKEN = Deno.env.get("XR_BOT_TOKEN") ?? "";
 const CLAUDE_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const CLAUDE_MODEL = Deno.env.get("CLAUDE_MODEL") ?? "claude-haiku-5-5";
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
@@ -31,6 +31,7 @@ async function cfg(force = false) {
   if (CFG && !force) return CFG;
   const { data } = await db.from("xr_config").select("key,value");
   CFG = Object.fromEntries((data ?? []).map((r: Row) => [r.key, r.value]));
+  if (!Deno.env.get("XR_BOT_TOKEN") && CFG!.bot_token) TG_TOKEN = CFG!.bot_token;
   return CFG!;
 }
 
@@ -145,7 +146,7 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
 
 /* ---------------- Gemini: ovozdan matn ---------------- */
 async function transcribe(b64: string, mime: string): Promise<string> {
-  if (!GEMINI_KEY) throw new Error("GEMINI_API_KEY sozlanmagan");
+  if (!GEMINI_KEY) throw new Error("Ovozli yozish uchun Gemini kaliti hali qo'shilmagan. Hozircha matn bilan yozing ✍️");
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -162,9 +163,55 @@ async function transcribe(b64: string, mime: string): Promise<string> {
   return (j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("").trim();
 }
 
+/* ---------------- Oddiy tahlilchi (Claude kaliti bo'lmasa yoki ishlamasa) ---------------- */
+const KW: [RegExp, string, string][] = [
+  [/firma|optom|ta'?minot|tovar|zakaz|postavsh|dastavka/i, "dokon", "firma"],
+  [/soliq|nalog/i, "dokon", "soliq"],
+  [/oylik|ish ?haqi|zarplat|sotuvchi|ishchi/i, "dokon", "oylik"],
+  [/ijara|arenda/i, "dokon", "ijara"],
+  [/svet|elektr/i, "dokon", "svet"],
+  [/\bgaz/i, "dokon", "gaz"],
+  [/taksi|benzin|propan|metan|avtobus|metro|yo'?lkira/i, "shaxsiy", "transport"],
+  [/bozor|non\b|go'?sht|sut\b|oziq|ovqat|meva|sabzavot|produkt|guruch|yog'/i, "shaxsiy", "oziq"],
+  [/telefon|internet|paynet|wi-?fi|mobil/i, "shaxsiy", "aloqa"],
+  [/kiyim|oyoq ?kiyim|ko'?ylak|shim\b|kurtka|tufli/i, "shaxsiy", "kiyim"],
+  [/dori|apteka|shifokor|doktor|kasalxona|klinika/i, "shaxsiy", "soglik"],
+  [/kurs\b|maktab|bog'?cha|o'?qish|kitob|kontrakt/i, "shaxsiy", "talim"],
+  [/kafe|restoran|kino|sayohat|dam olish|to'?y/i, "shaxsiy", "dam"],
+  [/uy-?ro'?zg'?or|mebel|idish|remont|ta'?mir/i, "shaxsiy", "uy"],
+];
+function parseSum(t: string): number {
+  const m = t.toLowerCase().replace(/(\d)[\s.](?=\d{3}\b)/g, "$1").match(/(\d+(?:[.,]\d+)?)\s*(mln|million|milion|m\b|ming|k\b)?/);
+  if (!m) return 0;
+  const v = parseFloat(m[1].replace(",", "."));
+  return Math.round(v * (m[2] ? (/^(mln|million|milion|m)$/.test(m[2]) ? 1e6 : 1e3) : 1));
+}
+function simpleParse(text: string): { items: Row[]; reply: string } {
+  const date = /kecha/i.test(text) ? dAgo(1) : today();
+  const items: Row[] = [];
+  for (const seg of text.split(/[,;\n]|\bva\b|\bham\b/i)) {
+    const amount = parseSum(seg);
+    if (!amount) continue;
+    const k = KW.find(([re]) => re.test(seg));
+    let scope = k ? k[1] : "dokon", cat = k ? k[2] : "boshqa";
+    if (/\buy(ga|da|ni|imiz)?\b|oila|bola/i.test(seg)) {
+      scope = "shaxsiy";
+      cat = cat === "svet" || cat === "gaz" ? "kommunal" : cat === "ijara" ? "uy" : CATS.shaxsiy[cat] ? cat : "boshqa";
+    }
+    const fm = cat === "firma" ? seg.match(/([A-Za-z\u0400-\u04FF][\w'-]*(?:\s[A-Z][\w'-]*)?)\s+firma/i) : null;
+    const note = seg.replace(/\d+(?:[.,\s]\d+)*\s*(mln|million|milion|ming|k|so'?m|sum)?/gi, "").replace(/\s+/g, " ").trim().slice(0, 60);
+    items.push({ scope, cat, amount, firm: fm ? fm[1][0].toUpperCase() + fm[1].slice(1) : "", note, date });
+  }
+  return { items, reply: items.length ? "" : "Summani topmadim. Masalan: «svetga 250 ming to'ladim»" };
+}
+
 /* ---------------- saqlash va hisobot ---------------- */
 async function saveFromText(text: string, source: string) {
-  const { items, reply } = await claudeParse(text);
+  let parsed: { items: Row[]; reply: string };
+  if (CLAUDE_KEY) {
+    try { parsed = await claudeParse(text); } catch (e) { console.error(e); parsed = simpleParse(text); }
+  } else parsed = simpleParse(text);
+  const { items, reply } = parsed;
   const rows = items.map((x) => cleanItem(x, text, source)).filter((x) => x.amount > 0);
   if (!rows.length) return { saved: [] as Row[], reply: reply || "Xarajatni tushunmadim. Masalan: «svetga 250 ming to'ladim»" };
   const { data, error } = await db.from("xr_expenses").insert(rows).select();
