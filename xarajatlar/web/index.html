@@ -3,99 +3,141 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#f2f4f7">
 <meta name="robots" content="noindex">
 <title>Xarajatlar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.1.0/dist/iconify-icon.min.js"></script>
 <style>
-:root{--bg:#f4f1ea;--card:#fffdf8;--ink:#1c1a16;--mute:#7a7366;--line:#e6e0d3;--acc:#0f766e;--accl:#d9efe9;--shop:#b45309;--shopl:#fdecd3;--me:#4f46e5;--mel:#e5e4fb;--red:#c2410c;--shadow:0 1px 2px rgba(28,26,22,.06),0 6px 20px rgba(28,26,22,.05)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#13120f;--card:#1d1b17;--ink:#f1ece2;--mute:#a39b8c;--line:#2e2b25;--acc:#2dd4bf;--accl:#123a35;--shop:#f59e0b;--shopl:#3a2a12;--me:#a5b4fc;--mel:#25264a;--red:#fb923c;--shadow:none}}
-:root[data-theme="dark"]{--bg:#13120f;--card:#1d1b17;--ink:#f1ece2;--mute:#a39b8c;--line:#2e2b25;--acc:#2dd4bf;--accl:#123a35;--shop:#f59e0b;--shopl:#3a2a12;--me:#a5b4fc;--mel:#25264a;--red:#fb923c;--shadow:none}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-button,input,select{font:inherit;color:inherit}
-.wrap{max-width:640px;margin:0 auto;padding:16px 16px 150px}
-header{display:flex;align-items:center;justify-content:space-between;margin:4px 0 14px}
-h1{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0}
-h2{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:22px 4px 10px;display:flex;justify-content:space-between}
-.sub{color:var(--mute);font-size:13px}
-.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px}
-.chips::-webkit-scrollbar{display:none}
-.chip{border:1px solid var(--line);background:var(--card);padding:7px 13px;border-radius:99px;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer}
-.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:3px;gap:3px;margin-bottom:12px}
-.seg button{flex:1;border:0;background:none;padding:9px 4px;border-radius:11px;font-weight:700;font-size:13px;color:var(--mute);cursor:pointer}
-.seg button.on{background:var(--ink);color:var(--bg)}
-.hero{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow)}
-.hero .lbl{color:var(--mute);font-weight:700;font-size:13px}
-.hero .big{font-size:34px;font-weight:800;letter-spacing:-.03em;margin:2px 0 12px;font-variant-numeric:tabular-nums}
-.split{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--line)}
-.split i{display:block;height:100%}
-.tiles{display:flex;gap:10px;margin-top:12px}
-.tile{flex:1;border-radius:14px;padding:10px 12px}
-.tile small{display:block;font-weight:700;font-size:12px;opacity:.85}
-.tile b{font-size:16px;font-variant-numeric:tabular-nums}
-.t-shop{background:var(--shopl);color:var(--shop)}.t-me{background:var(--mel);color:var(--me)}
-.bars{display:flex;align-items:flex-end;gap:4px;height:110px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 10px 8px}
-.bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-.bars i{display:block;width:100%;max-width:26px;border-radius:6px 6px 3px 3px;background:var(--acc);min-height:2px}
-.bars i.z{background:var(--line)}
-.bars small{font-size:10px;color:var(--mute);margin-top:4px}
-.cat{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:8px}
-.ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none}
-.grow{flex:1;min-width:0}
-.grow b{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.grow small{display:block;color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pbar{height:5px;background:var(--line);border-radius:99px;margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;border-radius:99px}
-.amt{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
-.item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left}
-.tag{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;margin-right:4px;vertical-align:1px}
-.empty{text-align:center;color:var(--mute);padding:28px 12px}
-.empty .e{font-size:42px}
-/* pastki yozish paneli */
-.composer{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to top,var(--bg) 70%,transparent);padding:18px 12px calc(12px + env(safe-area-inset-bottom))}
-.cbox{max-width:640px;margin:0 auto;display:flex;gap:8px;align-items:center}
-.cin{flex:1;display:flex;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:4px 4px 4px 14px;min-width:0}
-.cin input{flex:1;border:0;background:none;outline:0;padding:10px 0;min-width:0;font-size:16px}
-.rb{width:46px;height:46px;border-radius:15px;border:0;display:grid;place-items:center;cursor:pointer;flex:none;font-size:20px}
-.send{background:var(--acc);color:#fff;width:40px;height:40px;border-radius:13px}
-.mic{background:var(--ink);color:var(--bg)}
-.mic.rec{background:var(--red);color:#fff;animation:pulse 1.2s infinite}
-.plus{background:var(--card);border:1px solid var(--line)}
-@keyframes pulse{50%{box-shadow:0 0 0 8px rgba(194,65,12,.18)}}
-.hint{max-width:640px;margin:0 auto 6px;text-align:center;font-size:12px;color:var(--mute);min-height:16px}
-/* oyna */
-.sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;z-index:20}
-.sheet>div{background:var(--bg);width:100%;max-width:640px;border-radius:24px 24px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
-.field{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:10px}
-.field small{display:block;color:var(--mute);font-size:11px;font-weight:700;margin-top:6px}
-.field input{width:100%;border:0;background:none;outline:0;padding:4px 0 8px;font-size:16px}
-.row{display:flex;gap:8px}
-.btn{flex:1;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:13px;font-weight:800;cursor:pointer}
-.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
-.btn.del{color:var(--red)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:110px;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:14px;font-weight:700;font-size:14px;z-index:30;max-width:calc(100% - 32px);box-shadow:var(--shadow)}
-.login{min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px}
-.login .e{font-size:56px}
-.thinking{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px}
-@keyframes spin{to{transform:rotate(360deg)}}
+:root{--bg:#f2f4f7;--card:#fff;--ink:#101828;--mute:#8a94a6;--line:#e6e9ef;--b:#2b6cf6;--bl:#e8f0ff;--red:#f04438;--redl:#fee4e2;--ok:#12b76a;--okl:#dcfae6}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%;background:var(--bg)}
+body{font:500 16px/1.4 Manrope,-apple-system,system-ui,sans-serif;color:var(--ink);padding-top:env(safe-area-inset-top)}
+#app{max-width:560px;margin:0 auto;padding:10px 14px calc(190px + env(safe-area-inset-bottom))}
+iconify-icon{display:inline-block;vertical-align:middle;flex:none}
+h1{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+h2{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--mute);display:flex;justify-content:space-between;align-items:center;gap:8px}
+small{display:block;font-size:13px;color:var(--mute);font-weight:500}
+.top{display:flex;justify-content:space-between;align-items:flex-end;margin:6px 0 16px}
+.pill{background:var(--bl);color:var(--b);font-weight:700;font-size:13px;padding:8px 12px;border-radius:99px;display:flex;align-items:center;gap:6px;border:0;font-family:inherit;cursor:pointer}
+input{font:inherit;color:inherit;width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:10px;outline:0}
+.field{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 14px;margin-bottom:10px}
+.field:focus-within{border-color:var(--b)}
+.field input{border:0;background:none;padding:14px 0;margin:0;min-width:0}
+.field iconify-icon{color:var(--b)}
+.btn{font:inherit;font-weight:700;border-radius:14px;padding:14px 16px;background:var(--card);color:var(--ink);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.btn:active{transform:scale(.97)}
+.btn.b{background:var(--b);color:#fff;border-color:var(--b)}.btn:disabled{opacity:.45}
+.btn.red{background:var(--redl);color:var(--red);border-color:var(--redl)}
+.btn.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn.full{width:100%}
+.link{background:none;border:0;color:var(--b);font:inherit;font-weight:700;padding:10px;cursor:pointer;width:100%;text-align:center}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}
+.card{background:var(--card);border-radius:18px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;width:100%;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.card:active{transform:scale(.99)}
+.card>.grow{flex:1;min-width:0}
+.card b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ico{width:44px;height:44px;border-radius:13px;background:var(--bl);color:var(--b);display:grid;place-items:center;flex:none}
+.right{text-align:right;flex:none;font-weight:800;font-variant-numeric:tabular-nums}
+.tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;display:inline-block;margin-right:4px}
+.chips{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{font:inherit;font-weight:700;font-size:14px;white-space:nowrap;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:99px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.chip.on{background:var(--bl);color:var(--b);border-color:var(--bl)}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.stat{background:linear-gradient(135deg,#2b6cf6 0%,#5b93ff 100%);color:#fff;border-radius:22px;padding:18px;margin-bottom:10px;position:relative;overflow:hidden}
+.stat:before,.stat:after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.08)}
+.stat:before{right:-50px;top:-60px;width:180px;height:180px}.stat:after{right:40px;bottom:-70px;width:120px;height:120px}
+.stat small{color:rgba(255,255,255,.8)}
+.stat .big{font-size:30px;font-weight:800;margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;position:relative;z-index:1}
+.stat .sp{display:flex;gap:8px;margin-top:14px;position:relative;z-index:1}
+.stat .sp div{flex:1;background:rgba(255,255,255,.16);border-radius:14px;padding:9px 11px;min-width:0}
+.stat .sp b{font-size:16px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat .sp small{font-size:12px;display:flex;align-items:center;gap:4px}
+.dtiles{display:flex;gap:8px;margin-bottom:10px}
+.dtile{flex:1;background:var(--card);border-radius:18px;padding:12px 14px;min-width:0}
+.dtile small{display:flex;align-items:center;gap:5px}
+.dtile b{display:block;font-size:17px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.dtile.in b{color:#16a34a}.dtile.out b{color:var(--red)}
+.seg{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:10px}
+.seg button{flex:1;font:inherit;font-size:14px;font-weight:700;border:0;background:none;color:var(--mute);padding:10px 4px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.seg button.on{background:var(--b);color:#fff}.seg.out button.on{background:var(--red)}.seg.in button.on{background:var(--ok)}
+.panel{background:var(--card);border-radius:18px;padding:14px;margin-bottom:10px}
+.bars{display:flex;gap:3px;height:140px;align-items:flex-end}
+.bars>div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
+.bars .pair{display:flex;gap:2px;align-items:flex-end;width:100%;height:100%;justify-content:center}
+.bars i{flex:1;max-width:14px;background:var(--red);border-radius:5px 5px 2px 2px;min-height:3px}
+.bars i.s{background:var(--ok)}.bars i.z{background:var(--line)}
+.bars small{font-size:10px;font-weight:700}
+.legend{display:flex;gap:14px;margin-top:10px;font-size:13px;font-weight:700;color:var(--mute)}
+.legend span{display:flex;align-items:center;gap:6px}.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.donut{display:flex;align-items:center;gap:14px}
+.donut svg{flex:none}
+.donut .lg{flex:1;min-width:0}
+.donut .lg div{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;padding:3px 0}
+.donut .lg i{width:10px;height:10px;border-radius:3px;flex:none}
+.donut .lg span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbar{height:6px;border-radius:99px;background:var(--bg);margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--b);border-radius:99px}
+.empty{text-align:center;color:var(--mute);padding:30px 10px}
+.empty iconify-icon{color:var(--b);opacity:.7;margin-bottom:8px}
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:16px;flex:none;color:#fff}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:5}
+nav button{flex:1;background:none;border:0;color:var(--mute);font:inherit;font-size:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;cursor:pointer}
+nav button.on{color:var(--b)}
+.slab{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;background:var(--card);border-radius:22px 22px 0 0;padding:10px 12px 12px;z-index:4;box-shadow:0 -8px 24px rgba(16,24,40,.08)}
+.hint{font-size:13px;color:var(--mute);font-weight:600;margin:0 4px 8px;min-height:18px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.hint b{color:var(--ink)}
+.cbox{display:flex;gap:8px;align-items:center}
+.cbox form{flex:1;display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:16px;padding:4px 4px 4px 14px;min-width:0;border:1px solid transparent}
+.cbox form:focus-within{border-color:var(--b);background:var(--card)}
+.cbox input{border:0;background:none;padding:10px 0;margin:0;min-width:0;font-size:16px}
+.rb{width:40px;height:40px;border-radius:12px;border:0;display:grid;place-items:center;cursor:pointer;flex:none;background:var(--b);color:#fff}
+.rb.ghost{background:var(--bl);color:var(--b);width:48px;height:48px;border-radius:15px}
+.mic{width:52px;height:52px;border-radius:50%;border:0;background:var(--b);color:#fff;display:grid;place-items:center;flex:none;cursor:pointer;transition:transform .15s,background .15s}
+.mic.rec{background:var(--red);transform:scale(1.08);animation:pulse 1.1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 6px rgba(240,68,56,.22)}50%{box-shadow:0 0 0 14px rgba(240,68,56,.06)}}
+.modal{position:fixed;inset:0;background:rgba(16,24,40,.5);display:flex;align-items:flex-end;z-index:9}
+.modal>div{background:var(--bg);width:100%;max-width:560px;margin:0 auto;border-radius:26px 26px 0 0;padding:20px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.mh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.x{background:var(--card);border:0;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--mute);flex:none}
+#toast{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-weight:700;padding:10px 16px;border-radius:99px;z-index:20;display:none;align-items:center;gap:6px;max-width:92%;font-size:14px}
+.login{padding-top:12vh;text-align:center}
+.logo{width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,#2b6cf6,#5b93ff);color:#fff;display:grid;place-items:center;margin:0 auto 18px;box-shadow:0 10px 30px rgba(43,108,246,.3)}
+.login h1{font-size:34px;margin-bottom:8px}
+.hist{background:var(--card);border-radius:18px;padding:4px 14px;margin-bottom:10px}
+.hrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
+.hrow:first-child{border-top:0}
+.hrow .grow{flex:1;min-width:0}
+.hrow button{background:none;border:0;color:var(--mute);cursor:pointer;padding:6px;display:grid}
+.big2{font-size:32px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.green{color:#16a34a}.redt{color:var(--red)}
+@media(min-width:900px){#app{max-width:720px}.slab{max-width:720px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"></div>
+<div id="app"></div>
+<div id="toast"></div>
 <script>
 const API = "https://gaincffqsfpezjnxwvwc.supabase.co/functions/v1/xarajat/api";
+const ic = (n, s = 22) => `<iconify-icon icon="solar:${n}" width="${s}" height="${s}"></iconify-icon>`;
+// [ikonka, nom, rang]
 const CATS = {
-  dokon:{firma:["🚚","Firmaga to'lov"],tovar:["📦","Tovar xaridi"],svet:["⚡","Svet"],gaz:["🔥","Gaz"],soliq:["🧾","Soliq"],ijara:["🏠","Ijara"],oylik:["👷","Ish haqi"],boshqa:["🧾","Boshqa"]},
-  shaxsiy:{oziq:["🛒","Oziq-ovqat"],transport:["🚕","Transport"],uy:["🏡","Uy-ro'zg'or"],kommunal:["💡","Kommunal"],aloqa:["📱","Telefon/internet"],kiyim:["👕","Kiyim"],soglik:["💊","Sog'liq"],talim:["📚","Ta'lim"],dam:["🎉","Dam olish"],boshqa:["🧩","Boshqa"]}
+  dokon:{firma:["delivery-bold-duotone","Firmaga to'lov","#2b6cf6"],tovar:["box-bold-duotone","Tovar xaridi","#7a5af8"],svet:["bolt-bold-duotone","Svet","#f79009"],gaz:["fire-bold-duotone","Gaz","#fb6514"],soliq:["bill-list-bold-duotone","Soliq","#667085"],ijara:["home-2-bold-duotone","Ijara","#06aed4"],oylik:["users-group-rounded-bold-duotone","Ish haqi","#ee46bc"],boshqa:["widget-4-bold-duotone","Boshqa","#84a3c4"]},
+  shaxsiy:{oziq:["cart-large-2-bold-duotone","Oziq-ovqat","#12b76a"],transport:["bus-bold-duotone","Transport","#f79009"],uy:["home-smile-bold-duotone","Uy-ro'zg'or","#06aed4"],kommunal:["lightbulb-bold-duotone","Kommunal","#eaaa08"],aloqa:["smartphone-bold-duotone","Telefon/internet","#2b6cf6"],kiyim:["t-shirt-bold-duotone","Kiyim","#ee46bc"],soglik:["health-bold-duotone","Sog'liq","#f04438"],talim:["book-bold-duotone","Ta'lim","#7a5af8"],dam:["gift-bold-duotone","Dam olish","#fb6514"],boshqa:["widget-4-bold-duotone","Boshqa","#84a3c4"]}
 };
-const SC = {dokon:{n:"Do'kon",c:"var(--shop)",l:"var(--shopl)"},shaxsiy:{n:"Shaxsiy",c:"var(--me)",l:"var(--mel)"}};
+const SAVDO = ["wallet-money-bold-duotone","Kunlik savdo","#12b76a"];
 const MON = ["yanvar","fevral","mart","aprel","may","iyun","iyul","avgust","sentabr","oktabr","noyabr","dekabr"];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const fmt = n => Math.round(n).toLocaleString("ru-RU");
+const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const som = n => fmt(n) + " so'm";
+const short = n => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(Math.abs(n) % 1e6 ? 1 : 0) + " mln" : Math.abs(n) >= 1e3 ? Math.round(n / 1e3) + "k" : String(Math.round(n));
 const digits = v => Math.round(+String(v ?? "").replace(/[^\d]/g, "") || 0);
 const iso = d => d.toLocaleDateString("sv-SE");
 const today = () => iso(new Date());
@@ -103,13 +145,24 @@ const dAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return iso
 const mStart = (k = 0) => { const d = new Date(); return iso(new Date(d.getFullYear(), d.getMonth() + k, 1)); };
 const mEnd = (k = 0) => { const d = new Date(); return iso(new Date(d.getFullYear(), d.getMonth() + k + 1, 0)); };
 const dLabel = d => d === today() ? "Bugun" : d === dAgo(1) ? "Kecha" : (() => { const x = new Date(d + "T00:00:00"); return x.getDate() + "-" + MON[x.getMonth()]; })();
-const cat = (s, c) => c === "savdo" ? ["💰", "Kunlik savdo"] : CATS[s]?.[c] || ["🧩", c];
+const hhmm = ts => { const d = new Date(ts); return isNaN(d) ? "" : String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const cat = (s, c) => c === "savdo" ? SAVDO : CATS[s]?.[c] || ["widget-4-bold-duotone", c, "#84a3c4"];
 const isS = r => r.kind === "savdo";
+const sum = rs => rs.reduce((a, r) => a + +r.amount, 0);
+const tint = c => c + "1f";
+const pkey = s => String(s || "").trim().toLowerCase().replace(/[ʻʼ‘’`´]/g, "'").replace(/\s+/g, " ");
+const AVC = ["#2b6cf6","#12b76a","#f79009","#7a5af8","#ee46bc","#06aed4","#fb6514","#667085"];
+const avc = s => AVC[[...pkey(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % AVC.length];
+const ini = s => String(s || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase();
 
-let T = "", ROWS = [], per = "today", scope = "all", busy = false, edit = null;
+const tgw = window.Telegram?.WebApp;
+try{ tgw?.ready(); tgw?.expand(); tgw?.setHeaderColor?.("#f2f4f7"); tgw?.setBackgroundColor?.("#f2f4f7"); }catch(e){}
+
+let T = "", ROWS = [], DEBTS = [], tab = "home", per = "today", scope = "all", dtab = "in", dq = "", busy = false, edit = null, dform = null, PL = [];
 try{ T = localStorage.getItem("xr_t") || ""; }catch(e){}
-const m = location.hash.match(/t=([\w-]{20,})/);
-if(m){ T = m[1]; try{ localStorage.setItem("xr_t", T); }catch(e){} history.replaceState(null, "", location.pathname); }
+const hm = location.hash.match(/t=([\w-]{20,})/);
+if(hm){ T = hm[1]; try{ localStorage.setItem("xr_t", T); }catch(e){} history.replaceState(null, "", location.pathname); }
+try{ tab = localStorage.getItem("xr_tab") || "home"; }catch(e){}
 
 async function api(action, body = {}){
   const r = await fetch(API, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({t:T, action, ...body})});
@@ -119,99 +172,228 @@ async function api(action, body = {}){
   return j;
 }
 function logout(){ T = ""; try{ localStorage.removeItem("xr_t"); }catch(e){} loginView(); }
-function toast(msg, ms = 2600){
-  document.querySelector(".toast")?.remove();
-  const t = document.createElement("div"); t.className = "toast"; t.innerHTML = msg; document.body.appendChild(t);
-  setTimeout(() => t.remove(), ms);
+let tT;
+function toast(msg, icon = "check-circle-bold"){
+  const t = $("#toast"); t.innerHTML = ic(icon, 18) + `<span>${msg}</span>`; t.style.display = "flex";
+  clearTimeout(tT); tT = setTimeout(() => t.style.display = "none", 2600);
 }
 function loginView(){
-  document.querySelector(".composer")?.remove();
-  $("#app").innerHTML = `<div class="login"><div class="e">🔒</div><h1>Xarajatlar</h1>
-  <p class="sub">Kirish uchun Telegram botingizda<br><b>🌐 Web sahifa</b> tugmasini bosing yoki <b>/web</b> deb yozing.</p></div>`;
+  $(".slab")?.remove(); $("nav")?.remove();
+  $("#app").innerHTML = `<div class="login"><div class="logo">${ic("wallet-money-bold-duotone", 38)}</div><h1>Xarajatlar</h1>
+  <p style="color:var(--mute);margin-bottom:22px">Kirish uchun Telegram botda<br><b style="color:var(--ink)">📱 Ilovani ochish</b> tugmasini bosing</p>
+  <a class="btn b" style="display:inline-flex;text-decoration:none" href="https://t.me/menku_bubot">${ic("plain-2-bold", 20)} Botni ochish</a></div>`;
 }
 
 /* ---------- davr ---------- */
-const PER = [["today","Bugun"],["week","7 kun"],["month","Shu oy"],["prev","O'tgan oy"]];
+const PER = [["today","Bugun"],["yday","Kecha"],["week","7 kun"],["month","Shu oy"],["prev","O'tgan oy"]];
 function range(){
   if(per === "today") return [today(), today()];
+  if(per === "yday") return [dAgo(1), dAgo(1)];
   if(per === "week") return [dAgo(6), today()];
   if(per === "month") return [mStart(), today()];
   return [mStart(-1), mEnd(-1)];
 }
-const inRange = r => { const [a, b] = range(); return r.spent_on >= a && r.spent_on <= b && (scope === "all" || r.scope === scope); };
 const inDates = r => { const [a, b] = range(); return r.spent_on >= a && r.spent_on <= b; };
+const inRange = r => inDates(r) && (scope === "all" || isS(r) || r.scope === scope);
 
 async function load(){
   try{
     const j = await api("list", {from: mStart(-1) < dAgo(62) ? mStart(-1) : dAgo(62)});
-    ROWS = j.rows || []; draw();
-  }catch(e){ if(T) $("#list") && ($("#list").innerHTML = `<div class="empty">⚠️ ${esc(e.message)}</div>`); }
+    ROWS = j.rows || []; DEBTS = j.debts || []; draw();
+  }catch(e){ if(T && $("#body")) $("#body").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone", 42)}<br>${esc(e.message)}</div>`; }
 }
 
 function shell(){
-  $("#app").innerHTML = `<header><div><h1>Xarajatlar</h1><div class="sub" id="dt"></div></div>
-    <button class="chip" onclick="load().then(()=>toast('Yangilandi'))">↻</button></header>
-    <div class="chips" id="pchips"></div>
-    <div class="seg" id="sseg"></div>
-    <div id="hero"></div><div id="chart"></div><div id="cats"></div>
-    <h2><span>Ro'yxat</span></h2><div id="list"><div class="empty"><span class="thinking"></span></div></div>`;
-  if(!document.querySelector(".composer")){
-    const c = document.createElement("div"); c.className = "composer";
-    c.innerHTML = `<div class="hint" id="hint">Yozing yoki 🎤 ayting: «svetga 250 ming» yoki «bugungi savdo 3 mln»</div>
-    <div class="cbox"><button class="rb plus" onclick="openForm()" aria-label="Qo'lda qo'shish">＋</button>
-      <form class="cin" onsubmit="event.preventDefault();sendText()"><input id="tx" placeholder="Xarajatni yozing..." autocomplete="off" enterkeyhint="send">
-      <button class="rb send" type="submit" aria-label="Yuborish">➤</button></form>
-      <button class="rb mic" id="mic" onclick="toggleRec()" aria-label="Ovoz">🎤</button></div>`;
-    document.body.appendChild(c);
+  $("#app").innerHTML = `<div id="body"><div class="empty"><span class="spin"></span></div></div>`;
+  if(!$(".slab")){
+    const s = document.createElement("div"); s.className = "slab";
+    s.innerHTML = `<div class="hint" id="hint">Yozing yoki ayting: <b>«svetga 250 ming»</b>, <b>«savdo 3 mln»</b>, <b>«Ali 50 ming nasiya oldi»</b></div>
+    <div class="cbox"><button class="rb ghost" onclick="tab==='debts'?openDebtForm():openForm()" aria-label="Qo'lda qo'shish">${ic("add-circle-bold", 26)}</button>
+      <form onsubmit="event.preventDefault();sendText()"><input id="tx" placeholder="Xarajat, savdo yoki qarz..." autocomplete="off" enterkeyhint="send">
+      <button class="rb" type="submit" aria-label="Yuborish">${ic("plain-2-bold", 20)}</button></form>
+      <button class="mic" id="mic" onclick="toggleRec()" aria-label="Ovoz">${ic("microphone-3-bold", 26)}</button></div>`;
+    document.body.appendChild(s);
+    document.body.appendChild(document.createElement("nav"));
   }
-  const d = new Date(); $("#dt").textContent = d.getDate() + "-" + MON[d.getMonth()] + ", " + d.getFullYear();
 }
+function drawNav(){
+  const N = [["home","chart-2-bold-duotone","Asosiy"],["list","document-text-bold-duotone","Ro'yxat"],["debts","notebook-bold-duotone","Qarzlar"]];
+  $("nav").innerHTML = N.map(([k, i, l]) => `<button class="${tab===k?"on":""}" onclick="go('${k}')">${ic(i, 26)}${l}</button>`).join("");
+}
+function go(k){ tab = k; try{ localStorage.setItem("xr_tab", k); }catch(e){} draw(); scrollTo(0, 0); }
+
+function header(title, sub){
+  return `<div class="top"><div><small>${sub}</small><h1>${title}</h1></div>
+    <button class="pill" onclick="load().then(()=>toast('Yangilandi'))">${ic("refresh-bold", 16)} Yangilash</button></div>`;
+}
+function perChips(){ return `<div class="chips">${PER.map(([k, l]) => `<button class="chip ${per===k?"on":""}" onclick="per='${k}';draw()">${l}</button>`).join("")}</div>`; }
+function scopeSeg(){ return `<div class="seg">${[["all","Hammasi","widget-bold"],["dokon","Do'kon","shop-bold"],["shaxsiy","Shaxsiy","user-rounded-bold"]].map(([k, l, i]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';draw()">${ic(i, 18)}${l}</button>`).join("")}</div>`; }
 
 function draw(){
-  if(!$("#pchips")) return;
-  $("#pchips").innerHTML = PER.map(([k, l]) => `<button class="chip ${per===k?"on":""}" onclick="per='${k}';draw()">${l}</button>`).join("");
-  $("#sseg").innerHTML = [["all","Hammasi"],["dokon","🏪 Do'kon"],["shaxsiy","👤 Shaxsiy"]].map(([k, l]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';draw()">${l}</button>`).join("");
-  const allR = ROWS.filter(inRange), rs = allR.filter(r => !isS(r)), tot = rs.reduce((a, r) => a + +r.amount, 0);
-  const sv = ROWS.filter(inDates).filter(isS).reduce((a, r) => a + +r.amount, 0);
-  const sh = rs.filter(r => r.scope === "dokon").reduce((a, r) => a + +r.amount, 0), me = tot - sh;
-  const pl = PER.find(p => p[0] === per)[1];
-  $("#hero").innerHTML = (sv && scope !== "shaxsiy" ? `<div class="tiles" style="margin:0 0 10px"><div class="tile" style="background:var(--accl);color:var(--acc)"><small>💰 Savdo</small><b>${fmt(sv)}</b></div><div class="tile" style="background:var(--card);border:1px solid var(--line)"><small>${sv - tot >= 0 ? "✅ Qoldi" : "🔻 Kam"}</small><b>${fmt(sv - tot)}</b></div></div>` : "") + `<div class="hero"><div class="lbl">${pl} · ${rs.length} ta xarajat</div><div class="big">${som(tot)}</div>
-    ${scope === "all" ? `<div class="split"><i style="width:${tot ? sh / tot * 100 : 0}%;background:var(--shop)"></i><i style="width:${tot ? me / tot * 100 : 0}%;background:var(--me)"></i></div>
-    <div class="tiles"><div class="tile t-shop"><small>🏪 Do'kon</small><b>${fmt(sh)}</b></div><div class="tile t-me"><small>👤 Shaxsiy</small><b>${fmt(me)}</b></div></div>` : ""}</div>`;
-  // kunlik grafik
-  if(per !== "today"){
-    const [a, b] = range(), days = [];
-    for(let d = new Date(a + "T00:00:00"); iso(d) <= b; d.setDate(d.getDate() + 1)) days.push(iso(d));
-    const by = {}; rs.forEach(r => by[r.spent_on] = (by[r.spent_on] || 0) + +r.amount);
-    const mx = Math.max(...days.map(d => by[d] || 0), 1), step = days.length > 10 ? 5 : 1;
-    $("#chart").innerHTML = `<h2><span>Kunlar bo'yicha</span></h2><div class="bars">${days.map((d, i) => `<div title="${d}: ${som(by[d] || 0)}"><i class="${by[d] ? "" : "z"}" style="height:${Math.round((by[d] || 0) / mx * 82)}%"></i><small>${(i % step === 0 || days.length <= 10) ? +d.slice(8) : "&nbsp;"}</small></div>`).join("")}</div>`;
-  } else $("#chart").innerHTML = "";
-  // turlar
-  const bc = {}; rs.forEach(r => { const k = r.scope + "|" + r.cat; bc[k] = (bc[k] || 0) + +r.amount; });
-  const cs = Object.entries(bc).sort((a, b) => b[1] - a[1]), cm = Math.max(...cs.map(c => c[1]), 1);
-  $("#cats").innerHTML = cs.length ? `<h2><span>Turlar bo'yicha</span></h2>` + cs.map(([k, v]) => { const [s, c] = k.split("|"), x = cat(s, c);
-    return `<div class="cat"><div class="ico" style="background:${SC[s].l}">${x[0]}</div><div class="grow"><b>${esc(x[1])}</b><small>${SC[s].n} · ${tot ? Math.round(v / tot * 100) : 0}%</small><div class="pbar"><i style="width:${v / cm * 100}%;background:${SC[s].c}"></i></div></div><div class="amt">${fmt(v)}</div></div>`; }).join("") : "";
-  // ro'yxat
-  const g = {}; allR.forEach(r => (g[r.spent_on] ||= []).push(r));
-  $("#list").innerHTML = allR.length ? Object.entries(g).map(([d, items]) => `<h2><span>${dLabel(d)}</span><span>${som(items.filter(r => !isS(r)).reduce((a, r) => a + +r.amount, 0))}</span></h2>` +
-    items.map(r => { const x = cat(r.scope, r.cat);
-      return `<button class="item" onclick="openForm(${r.id})"><div class="ico" style="background:${isS(r) ? "var(--accl)" : SC[r.scope].l}">${x[0]}</div>
-      <div class="grow"><b>${esc(r.firm || x[1])}</b><small><span class="tag" style="background:${isS(r) ? "var(--accl)" : SC[r.scope].l};color:${isS(r) ? "var(--acc)" : SC[r.scope].c}">${isS(r) ? "Savdo" : SC[r.scope].n}</span>${r.firm ? esc(x[1]) + " · " : ""}${esc(r.note || "")}${r.source?.includes("voice") ? " 🎤" : ""}</small></div>
-      <div class="amt" style="${isS(r) ? "color:var(--acc)" : ""}">${isS(r) ? "+" : "−"}${fmt(r.amount)}</div></button>`; }).join("")).join("")
-    : `<div class="empty"><div class="e">🧾</div>Bu davrda xarajat yo'q<br><small>Pastda yozing yoki 🎤 bosing</small></div>`;
+  if(!$("#body")) return;
+  drawNav();
+  if(tab === "debts") return drawDebts();
+  if(tab === "list") return drawList();
+  drawHome();
 }
+
+/* ---------- Asosiy ---------- */
+function drawHome(){
+  const all = ROWS.filter(inRange), rs = all.filter(r => !isS(r)), tot = sum(rs);
+  const sv = scope === "shaxsiy" ? 0 : sum(ROWS.filter(inDates).filter(isS)), left = sv - tot;
+  const pl = PER.find(p => p[0] === per)[1], d = new Date();
+  let h = header("Xarajatlar", d.getDate() + "-" + MON[d.getMonth()] + ", " + d.getFullYear()) + perChips() + scopeSeg();
+  h += `<div class="stat"><small>${pl} · ${rs.length} ta xarajat</small><div class="big">${som(tot)}</div>
+    <div class="sp"><div><small>${ic("arrow-down-left-bold", 14)} Savdo</small><b>${fmt(sv)}</b></div><div><small>${ic(left >= 0 ? "check-circle-bold" : "danger-triangle-bold", 14)} Qoldi</small><b>${fmt(left)}</b></div></div></div>`;
+  const P = people(), inn = P.filter(p => p.dir === "in" && p.bal > 0), out = P.filter(p => p.dir === "out" && p.bal > 0);
+  if(inn.length || out.length) h += `<div class="dtiles" onclick="go('debts')" style="cursor:pointer"><div class="dtile in"><small>${ic("arrow-down-left-bold", 15)} Menga qarzdor</small><b>${fmt(sum(inn.map(p => ({amount:p.bal}))))}</b></div><div class="dtile out"><small>${ic("arrow-up-right-bold", 15)} Mening qarzim</small><b>${fmt(sum(out.map(p => ({amount:p.bal}))))}</b></div></div>`;
+  if(per !== "today" && per !== "yday"){
+    const [a, b] = range(), days = [];
+    for(let x = new Date(a + "T00:00:00"); iso(x) <= b; x.setDate(x.getDate() + 1)) days.push(iso(x));
+    const ex = {}, sl = {}; all.forEach(r => { const o = isS(r) ? sl : ex; o[r.spent_on] = (o[r.spent_on] || 0) + +r.amount; });
+    const hasS = days.some(x => sl[x]), mx = Math.max(...days.map(x => Math.max(ex[x] || 0, sl[x] || 0)), 1), step = days.length > 10 ? 5 : 1;
+    h += `<h2><span>Kunlar bo'yicha</span><span>${days.length} kun</span></h2><div class="panel"><div class="bars">${days.map((x, i) => `<div title="${dLabel(x)}: xarajat ${fmt(ex[x] || 0)}${sl[x] ? ", savdo " + fmt(sl[x]) : ""}"><div class="pair"><i class="${ex[x] ? "" : "z"}" style="height:${Math.round((ex[x] || 0) / mx * 100)}%"></i>${hasS ? `<i class="s ${sl[x] ? "" : "z"}" style="height:${Math.round((sl[x] || 0) / mx * 100)}%"></i>` : ""}</div><small style="color:${x === today() ? "var(--b)" : "var(--mute)"}">${(days.length <= 10 || i % step === 0 || i === days.length - 1) ? +x.slice(8) : "&nbsp;"}</small></div>`).join("")}</div>
+      <div class="legend"><span><i style="background:var(--red)"></i>Xarajat</span>${hasS ? `<span><i style="background:var(--ok)"></i>Savdo</span>` : ""}</div></div>`;
+  }
+  const bc = {}; rs.forEach(r => { const k = r.scope + "|" + r.cat; bc[k] = (bc[k] || 0) + +r.amount; });
+  const cs = Object.entries(bc).sort((a, b) => b[1] - a[1]);
+  if(cs.length){
+    h += `<h2><span>Nimaga ketdi</span><span>${cs.length} tur</span></h2><div class="panel donut">${donut(cs.map(([k, v]) => [v, cat(...k.split("|"))[2]]), tot)}
+      <div class="lg">${cs.slice(0, 6).map(([k, v]) => { const x = cat(...k.split("|")); return `<div><i style="background:${x[2]}"></i><span>${esc(x[1])}</span><b>${Math.round(v / tot * 100)}%</b></div>`; }).join("")}</div></div>`;
+    h += cs.map(([k, v]) => { const [s, c] = k.split("|"), x = cat(s, c);
+      return `<button class="card" onclick="go('list')"><div class="ico" style="background:${tint(x[2])};color:${x[2]}">${ic(x[0], 24)}</div><div class="grow"><b>${esc(x[1])}</b><small>${s === "dokon" ? "Do'kon" : "Shaxsiy"} · ${Math.round(v / tot * 100)}%</small><div class="pbar"><i style="width:${v / cs[0][1] * 100}%;background:${x[2]}"></i></div></div><div class="right">${fmt(v)}</div></button>`; }).join("");
+  }
+  const last = all.slice(0, 5);
+  h += `<h2><span>Oxirgi yozuvlar</span>${all.length > 5 ? `<button class="link" style="width:auto;padding:0" onclick="go('list')">Hammasi →</button>` : ""}</h2>`;
+  h += last.length ? last.map(item).join("") : `<div class="empty">${ic("bill-list-bold-duotone", 48)}<br>Bu davrda yozuv yo'q<br><small>Pastda yozing yoki mikrofonni bosing</small></div>`;
+  $("#body").innerHTML = h;
+}
+function donut(parts, tot){
+  const R = 52, C = 2 * Math.PI * R; let off = 0;
+  const segs = parts.map(([v, c]) => { const len = v / tot * C, s = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${c}" stroke-width="20" stroke-dasharray="${Math.max(len - (parts.length > 1 ? 2 : 0), .5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`; off += len; return s; }).join("");
+  return `<svg width="140" height="140" viewBox="0 0 140 140"><circle r="${R}" cx="70" cy="70" fill="none" stroke="#f2f4f7" stroke-width="20"/>${segs}
+    <text x="70" y="70" text-anchor="middle" font-size="18" font-weight="800" fill="#101828" font-family="Manrope,sans-serif">${short(tot)}</text><text x="70" y="88" text-anchor="middle" font-size="11" font-weight="600" fill="#8a94a6" font-family="Manrope,sans-serif">so'm</text></svg>`;
+}
+function item(r){
+  const x = cat(r.scope, r.cat), s = isS(r), t = r.firm || r.note;
+  return `<button class="card" onclick="openForm(${r.id})"><div class="ico" style="background:${tint(x[2])};color:${x[2]}">${ic(x[0], 24)}</div>
+    <div class="grow"><b>${esc(t || x[1])}</b><small>${s ? `<span class="tag" style="background:var(--okl);color:#067647">Savdo</span>` : r.scope === "shaxsiy" ? `<span class="tag" style="background:#f4ebff;color:#6941c6">Shaxsiy</span>` : ""}${t ? esc(x[1]) + " · " : ""}${r.spent_on !== today() && tab === "home" && per !== "today" ? dLabel(r.spent_on) + " " : ""}${hhmm(r.created_at)}${r.source?.includes("voice") ? " · 🎤" : ""}</small></div>
+    <div class="right ${s ? "green" : ""}">${s ? "+" : "−"}${fmt(r.amount)}</div></button>`;
+}
+
+/* ---------- Ro'yxat ---------- */
+function drawList(){
+  const all = ROWS.filter(inRange);
+  let h = header("Ro'yxat", all.length + " ta yozuv") + perChips() + scopeSeg();
+  const g = {}; all.forEach(r => (g[r.spent_on] ||= []).push(r));
+  h += all.length ? Object.entries(g).map(([d, items]) => { const x = sum(items.filter(r => !isS(r))), sv = sum(items.filter(isS));
+    return `<h2><span>${dLabel(d)}</span><span>${sv ? `<span class="green">+${fmt(sv)}</span> · ` : ""}<span class="redt">−${fmt(x)}</span></span></h2>` + items.map(item).join(""); }).join("")
+    : `<div class="empty">${ic("document-text-bold-duotone", 48)}<br>Bu davrda yozuv yo'q</div>`;
+  $("#body").innerHTML = h;
+}
+
+/* ---------- Qarzlar ---------- */
+function people(){
+  const m = new Map();
+  for(const r of DEBTS){
+    const k = r.dir + "|" + pkey(r.person);
+    let p = m.get(k);
+    if(!p){ p = {key:k, name:r.person, dir:r.dir, bal:0, debt:0, paid:0, last:r.created_at, rows:[]}; m.set(k, p); }
+    if(r.kind === "pay"){ p.bal -= +r.amount; p.paid += +r.amount; } else { p.bal += +r.amount; p.debt += +r.amount; }
+    p.rows.push(r);
+  }
+  return [...m.values()].map(p => ({...p, bal:Math.round(p.bal)}));
+}
+const ago = ts => { const d = Math.round((Date.now() - Date.parse(ts)) / 864e5); return d <= 0 ? "bugun" : d === 1 ? "kecha" : d + " kun oldin"; };
+function drawDebts(){
+  const P = people(), open = p => p.bal > 0;
+  const inn = P.filter(p => p.dir === "in" && open(p)), out = P.filter(p => p.dir === "out" && open(p)), done = P.filter(p => !open(p));
+  const tin = sum(inn.map(p => ({amount:p.bal}))), tout = sum(out.map(p => ({amount:p.bal})));
+  let list = dtab === "out" ? out : dtab === "done" ? done : inn;
+  if(dq) list = list.filter(p => pkey(p.name).includes(pkey(dq)));
+  list.sort((a, b) => dtab === "done" ? (b.last > a.last ? 1 : -1) : b.bal - a.bal);
+  PL = list;
+  let h = header("Qarz daftari", P.length + " kishi");
+  h += `<div class="dtiles"><div class="dtile in"><small>${ic("arrow-down-left-bold", 15)} Menga qarzdor</small><b>${fmt(tin)}</b><small>${inn.length} kishi</small></div><div class="dtile out"><small>${ic("arrow-up-right-bold", 15)} Mening qarzim</small><b>${fmt(tout)}</b><small>${out.length} kishi</small></div></div>`;
+  h += `<div class="seg ${dtab === "out" ? "out" : dtab === "in" ? "in" : ""}">${[["in","Menga",inn.length],["out","Men",out.length],["done","Yopilgan",done.length]].map(([k, l, n]) => `<button class="${dtab===k?"on":""}" onclick="dtab='${k}';draw()">${l} · ${n}</button>`).join("")}</div>`;
+  if(P.length > 5) h += `<label class="field">${ic("magnifer-linear", 20)}<input id="dq" placeholder="Ism bo'yicha qidirish" value="${esc(dq)}" oninput="dq=this.value;clearTimeout(window.qT);window.qT=setTimeout(()=>{draw();const i=$('#dq');i.focus();i.setSelectionRange(i.value.length,i.value.length)},300)"></label>`;
+  h += `<button class="btn b full" style="margin-bottom:12px" onclick="openDebtForm()">${ic("add-circle-bold", 20)} Qarz yozish</button>`;
+  h += list.length ? list.map((p, i) => { const pct = p.debt ? Math.min(100, p.paid / p.debt * 100) : 0, col = p.dir === "in" ? "var(--ok)" : "var(--red)";
+    return `<button class="card" onclick="openPerson(PL[${i}].key)"><div class="av" style="background:${avc(p.name)}">${esc(ini(p.name))}</div>
+      <div class="grow"><b>${esc(p.name)}</b><small>${p.rows.length} ta yozuv · ${ago(p.last)}</small>${dtab !== "done" && p.paid ? `<div class="pbar"><i style="width:${pct}%;background:${col}"></i></div>` : ""}</div>
+      <div class="right">${dtab === "done" ? `<span class="green">${ic("check-circle-bold", 24)}</span>` : `<span class="${p.dir === "in" ? "green" : "redt"}">${fmt(p.bal)}</span>${p.paid ? `<small style="font-weight:600">${Math.round(pct)}% to'landi</small>` : ""}`}</div></button>`; }).join("")
+    : `<div class="empty">${ic("notebook-bold-duotone", 52)}<br><b style="color:var(--ink)">${dtab === "done" ? "Yopilgan qarz yo'q" : "Qarz yo'q"}</b><br><small>Yozing yoki ayting: «Alisher 85 ming nasiya oldi»</small></div>`;
+  $("#body").innerHTML = h;
+}
+let CUR = null;
+function openPerson(key){
+  const p = people().find(x => x.key === key); if(!p) return closeModal();
+  CUR = p;
+  const col = p.dir === "in" ? "#16a34a" : "var(--red)";
+  modal(`<div class="mh"><div class="row" style="gap:12px;min-width:0"><div class="av" style="background:${avc(p.name)};flex:none">${esc(ini(p.name))}</div><div style="min-width:0"><h1 style="font-size:21px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</h1><small>${p.dir === "in" ? "Menga qarzdor" : "Men unga qarzdorman"}</small></div></div><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
+  <div class="panel" style="text-align:center"><small>${p.bal > 0 ? "Qolgan qarz" : "Holat"}</small><div class="big2" style="color:${p.bal > 0 ? col : "var(--ok)"}">${p.bal > 0 ? som(p.bal) : "Yopilgan ✓"}</div>
+    ${p.debt ? `<div class="pbar" style="height:8px;margin:10px 0 0"><i style="width:${Math.min(100, p.paid / p.debt * 100)}%;background:${col}"></i></div>` : ""}
+    <div class="dtiles" style="margin:12px 0 0"><div class="dtile" style="background:var(--bg)"><small>Jami qarz</small><b>${fmt(p.debt)}</b></div><div class="dtile" style="background:var(--bg)"><small>Qaytarilgan</small><b>${fmt(p.paid)}</b></div></div></div>
+  <div class="row" style="margin-bottom:12px"><button class="btn ok" onclick="openDebtForm(CUR.dir,'pay',CUR.name,Math.max(CUR.bal,0))">${ic("hand-money-bold", 20)} ${p.dir === "in" ? "Qaytardi" : "To'ladim"}</button><button class="btn" onclick="openDebtForm(CUR.dir,'debt',CUR.name)">${ic("add-circle-bold", 20)} Yana qarz</button></div>
+  <h2 style="margin-top:4px"><span>Tarix</span><span>${p.rows.length} ta</span></h2>
+  <div class="hist">${p.rows.map(r => `<div class="hrow"><div class="ico" style="width:38px;height:38px;background:${r.kind === "pay" ? "var(--okl)" : "var(--redl)"};color:${r.kind === "pay" ? "#16a34a" : "var(--red)"}">${ic(r.kind === "pay" ? "arrow-down-left-bold" : "arrow-up-right-bold", 20)}</div>
+    <div class="grow"><b>${r.kind === "pay" ? (p.dir === "in" ? "Qaytardi" : "Men to'ladim") : (p.dir === "in" ? "Nasiyaga oldi" : "Men qarz oldim")}</b><small>${dLabel(r.spent_on)}${r.note ? " · " + esc(r.note) : ""}${r.source?.includes("voice") ? " · 🎤" : ""}</small></div>
+    <b style="font-variant-numeric:tabular-nums" class="${r.kind === "pay" ? "green" : ""}">${r.kind === "pay" ? "−" : "+"}${fmt(r.amount)}</b><button onclick="delDebt(${r.id})" aria-label="O'chirish">${ic("trash-bin-trash-linear", 20)}</button></div>`).join("")}</div>`);
+}
+async function delDebt(id){
+  if(!confirm("Bu yozuv o'chirilsinmi?")) return;
+  const key = CUR?.key;
+  try{ await api("del_debt", {id}); DEBTS = DEBTS.filter(d => d.id !== id); toast("O'chirildi"); draw(); people().some(x => x.key === key) ? openPerson(key) : closeModal(); }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
+}
+function openDebtForm(dir = dtab === "out" ? "out" : "in", kind = "debt", person = "", amount = 0){
+  dform = {dir, kind, person, amount, note:"", date:today()}; drawDebtForm();
+}
+function drawDebtForm(){
+  const f = dform, names = [...new Set(DEBTS.filter(d => d.dir === f.dir).map(d => d.person))];
+  const lbl = f.dir === "in" ? {debt:"Nasiyaga oldi", pay:"Qaytardi"} : {debt:"Men qarz oldim", pay:"Men to'ladim"};
+  modal(`<div class="mh"><h1 style="font-size:22px">Qarz yozish</h1><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
+  <div class="seg ${f.dir}">${[["in","Menga qarzdor","arrow-down-left-bold"],["out","Men qarzdorman","arrow-up-right-bold"]].map(([k, l, i]) => `<button class="${f.dir===k?"on":""}" onclick="dform.dir='${k}';drawDebtForm()">${ic(i, 18)}${l}</button>`).join("")}</div>
+  <div class="seg">${["debt","pay"].map(k => `<button class="${f.kind===k?"on":""}" onclick="dform.kind='${k}';drawDebtForm()">${ic(k === "pay" ? "hand-money-bold" : "add-circle-bold", 18)}${lbl[k]}</button>`).join("")}</div>
+  <label class="field">${ic("user-rounded-bold-duotone", 22)}<input list="pl" placeholder="Ism" value="${esc(f.person)}" oninput="dform.person=this.value" autocomplete="off"></label><datalist id="pl">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+  <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="da" placeholder="Summa" value="${f.amount ? fmt(f.amount) : ""}" oninput="dform.amount=digits(this.value);this.value=dform.amount?fmt(dform.amount):''"></label>
+  <label class="field">${ic("calendar-bold-duotone", 22)}<input type="date" value="${f.date}" max="${today()}" onchange="dform.date=this.value||today()"></label>
+  <label class="field">${ic("pen-2-bold-duotone", 22)}<input placeholder="Izoh (ixtiyoriy)" value="${esc(f.note)}" oninput="dform.note=this.value"></label>
+  <button class="btn b full" id="dsave" onclick="saveDebt()">${ic("check-circle-bold", 20)} Saqlash</button>`);
+}
+async function saveDebt(){
+  const f = dform;
+  if(!f.person.trim()) return toast("Ismni kiriting", "danger-triangle-bold");
+  if(!(f.amount > 0)) return toast("Summani kiriting", "danger-triangle-bold");
+  $("#dsave").disabled = true;
+  try{
+    const j = await api("add_debt", {person:f.person, dir:f.dir, dkind:f.kind, amount:f.amount, note:f.note, date:f.date});
+    DEBTS = [j.debt, ...DEBTS]; closeModal(); dtab = f.dir; go("debts"); toast("Qarz yozildi");
+  }catch(e){ $("#dsave").disabled = false; toast(esc(e.message), "danger-triangle-bold"); }
+}
+
+/* ---------- modal ---------- */
+function modal(html){
+  let m = $("#modal");
+  if(!m){ m = document.createElement("div"); m.className = "modal"; m.id = "modal"; m.innerHTML = "<div></div>"; m.addEventListener("click", e => { if(e.target === m) closeModal(); }); document.body.appendChild(m); }
+  m.firstChild.innerHTML = html;
+}
+function closeModal(){ $("#modal")?.remove(); }
 
 /* ---------- AI orqali qo'shish ---------- */
 function savedMsg(j){
-  if(!j.saved?.length) return "🤔 " + esc(j.reply || "Tushunmadim");
-  return "✅ " + j.saved.map(r => `${cat(r.scope, r.cat)[0]} ${esc(r.firm || cat(r.scope, r.cat)[1])} ${fmt(r.amount)}`).join(", ");
+  const a = (j.saved || []).map(r => `${isS(r) ? "💰" : "✅"} ${esc(r.firm || r.note || cat(r.scope, r.cat)[1])} <b>${fmt(r.amount)}</b>`);
+  const b = (j.debts || []).map(d => `📒 ${esc(d.person)} <b>${d.kind === "pay" ? "−" : "+"}${fmt(d.amount)}</b>`);
+  return a.length || b.length ? [...a, ...b].join(" · ") : "🤔 " + esc(j.reply || "Tushunmadim");
 }
 function afterSave(j){
-  if(j.saved?.length){ ROWS = [...j.saved, ...ROWS]; const d = j.saved[0].spent_on; if(d !== today() && per === "today") per = d >= dAgo(6) ? "week" : "month"; draw(); }
+  if(j.saved?.length){ ROWS = [...j.saved, ...ROWS]; const d = j.saved[0].spent_on; if(d !== today() && per === "today") per = d === dAgo(1) ? "yday" : d >= dAgo(6) ? "week" : "month"; }
+  if(j.debts?.length){ DEBTS = [...j.debts, ...DEBTS]; if(!j.saved?.length){ dtab = j.debts[0].dir; return go("debts"); } }
+  draw();
 }
 async function sendText(){
   const v = $("#tx").value.trim(); if(!v || busy) return;
-  busy = true; $("#hint").innerHTML = `<span class="thinking"></span> Tushunyapman...`;
+  busy = true; $("#hint").innerHTML = `<span class="spin"></span> Tushunyapman...`;
   try{ const j = await api("text", {text:v}); $("#tx").value = ""; afterSave(j); $("#hint").innerHTML = savedMsg(j); }
   catch(e){ $("#hint").innerHTML = "⚠️ " + esc(e.message); }
   busy = false;
@@ -223,12 +405,12 @@ async function toggleRec(){
   if(busy) return;
   if(rec && rec.state === "recording"){ rec.stop(); return; }
   try{ stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:true, noiseSuppression:true}}); }
-  catch(e){ return toast("Mikrofonga ruxsat bering"); }
+  catch(e){ return toast("Mikrofonga ruxsat bering", "danger-triangle-bold"); }
   chunks = []; rec = new MediaRecorder(stream);
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   rec.onstop = onRecStop; rec.start();
-  rS = Date.now(); $("#mic").classList.add("rec"); $("#mic").textContent = "■";
-  rT = setInterval(() => { const s = Math.round((Date.now() - rS) / 1000); $("#hint").innerHTML = `🔴 Gapiring... ${s} s · tugatish uchun ■ bosing`; if(s >= 60) rec.stop(); }, 250);
+  rS = Date.now(); $("#mic").classList.add("rec"); $("#mic").innerHTML = ic("stop-bold", 24);
+  rT = setInterval(() => { const s = Math.round((Date.now() - rS) / 1000); $("#hint").innerHTML = `🔴 Gapiring... <b>${s} s</b> · tugatish uchun ■ bosing`; if(s >= 60) rec.stop(); }, 250);
 }
 function wav(pcm, rate){
   const b = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(b), w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
@@ -240,9 +422,9 @@ function wav(pcm, rate){
 const b64 = blob => new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(",")[1]); f.onerror = no; f.readAsDataURL(blob); });
 async function onRecStop(){
   clearInterval(rT); stream?.getTracks().forEach(t => t.stop());
-  $("#mic").classList.remove("rec"); $("#mic").textContent = "🎤";
-  if(Date.now() - rS < 700){ $("#hint").textContent = "Juda qisqa. Tugmani bosib, gapirib, keyin ■ bosing"; return; }
-  busy = true; $("#hint").innerHTML = `<span class="thinking"></span> Eshityapman...`;
+  $("#mic").classList.remove("rec"); $("#mic").innerHTML = ic("microphone-3-bold", 26);
+  if(Date.now() - rS < 700){ $("#hint").textContent = "Juda qisqa. Bosib, gapirib, keyin ■ bosing"; return; }
+  busy = true; $("#hint").innerHTML = `<span class="spin"></span> Eshityapman...`;
   try{
     const raw = new Blob(chunks, {type:rec.mimeType || "audio/webm"});
     let blob = raw, mime = raw.type.split(";")[0];
@@ -255,53 +437,47 @@ async function onRecStop(){
     }catch(e){}
     const j = await api("voice", {audio:await b64(blob), mime});
     afterSave(j);
-    $("#hint").innerHTML = (j.heard ? `🎤 «${esc(j.heard)}»<br>` : "") + savedMsg(j);
+    $("#hint").innerHTML = (j.heard ? `🎤 <i>«${esc(j.heard)}»</i> → ` : "") + savedMsg(j);
   }catch(e){ $("#hint").innerHTML = "⚠️ " + esc(e.message); }
   busy = false;
 }
 
-/* ---------- qo'lda qo'shish / tahrirlash ---------- */
+/* ---------- xarajat qo'shish / tahrirlash ---------- */
 function openForm(id){
   const r = id ? ROWS.find(x => x.id === id) : null;
   edit = r ? {id:r.id, kind:r.kind || "xarajat", scope:r.scope, cat:r.cat, amount:r.amount, firm:r.firm || "", note:r.note || "", date:r.spent_on}
-           : {id:null, kind:"xarajat", scope:scope === "shaxsiy" ? "shaxsiy" : "dokon", cat:scope === "shaxsiy" ? "oziq" : "firma", amount:"", firm:"", note:"", date:today()};
-  closeForm();
-  const s = document.createElement("div"); s.className = "sheet"; s.id = "sheet";
-  s.innerHTML = `<div id="ef"></div>`; s.addEventListener("click", e => { if(e.target === s) closeForm(); });
-  document.body.appendChild(s); drawForm();
+           : {id:null, kind:"xarajat", scope:scope === "shaxsiy" ? "shaxsiy" : "dokon", cat:scope === "shaxsiy" ? "oziq" : "tovar", amount:"", firm:"", note:"", date:today()};
+  drawForm();
 }
-function closeForm(){ $("#sheet")?.remove(); }
 function drawForm(){
   const e = edit, firms = [...new Set(ROWS.map(r => r.firm).filter(Boolean))];
-  $("#ef").innerHTML = `<h1 style="font-size:22px;margin-bottom:12px">${e.id ? "Tahrirlash" : "Yangi xarajat"}</h1>
-  <div class="seg">${[["xarajat","💸 Xarajat"],["savdo","💰 Savdo"]].map(([k, l]) => `<button class="${e.kind===k?"on":""}" onclick="edit.kind='${k}';drawForm()">${l}</button>`).join("")}</div>
-  ${e.kind === "savdo" ? "" : `<div class="seg">${["dokon","shaxsiy"].map(k => `<button class="${e.scope===k?"on":""}" onclick="edit.scope='${k}';if(!CATS['${k}'][edit.cat])edit.cat='boshqa';drawForm()">${k === "dokon" ? "🏪 Do'kon" : "👤 Shaxsiy"}</button>`).join("")}</div>
-  <div class="chips" style="flex-wrap:wrap">${Object.entries(CATS[e.scope]).map(([k, [i, l]]) => `<button class="chip ${e.cat===k?"on":""}" onclick="edit.cat='${k}';drawForm()">${i} ${l}</button>`).join("")}</div>`}
-  ${e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" ? `<label class="field"><small>Firma nomi</small><input list="fl" value="${esc(e.firm)}" oninput="edit.firm=this.value" autocomplete="off"></label><datalist id="fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>` : ""}
-  <label class="field"><small>Summa</small><input inputmode="numeric" id="ea" value="${e.amount ? fmt(e.amount) : ""}" oninput="edit.amount=digits(this.value)" placeholder="0"></label>
-  <div class="row"><label class="field" style="flex:1"><small>Sana</small><input type="date" value="${e.date}" max="${today()}" onchange="edit.date=this.value||today()"></label></div>
-  <label class="field"><small>Izoh</small><input value="${esc(e.note)}" oninput="edit.note=this.value" placeholder="ixtiyoriy"></label>
-  <div class="row" style="margin-top:6px">${e.id ? `<button class="btn del" onclick="delItem()">O'chirish</button>` : `<button class="btn" onclick="closeForm()">Bekor</button>`}<button class="btn pri" id="esave" onclick="saveForm()">Saqlash</button></div>`;
-  if(!e.id) setTimeout(() => $("#ea")?.focus(), 200);
+  modal(`<div class="mh"><h1 style="font-size:22px">${e.id ? "Tahrirlash" : "Yangi yozuv"}</h1><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
+  <div class="seg ${e.kind === "savdo" ? "in" : "out"}">${[["xarajat","Xarajat","arrow-up-right-bold"],["savdo","Savdo","arrow-down-left-bold"]].map(([k, l, i]) => `<button class="${e.kind===k?"on":""}" onclick="edit.kind='${k}';drawForm()">${ic(i, 18)}${l}</button>`).join("")}</div>
+  ${e.kind === "savdo" ? "" : `<div class="seg">${[["dokon","Do'kon","shop-bold"],["shaxsiy","Shaxsiy","user-rounded-bold"]].map(([k, l, i]) => `<button class="${e.scope===k?"on":""}" onclick="edit.scope='${k}';if(!CATS['${k}'][edit.cat])edit.cat='boshqa';drawForm()">${ic(i, 18)}${l}</button>`).join("")}</div>
+  <div class="chips wrap">${Object.entries(CATS[e.scope]).map(([k, [i, l, c]]) => `<button class="chip ${e.cat===k?"on":""}" onclick="edit.cat='${k}';drawForm()"><span style="color:${c};display:grid">${ic(i, 18)}</span>${l}</button>`).join("")}</div>`}
+  ${e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" ? `<label class="field">${ic("delivery-bold-duotone", 22)}<input list="fl" placeholder="Firma nomi" value="${esc(e.firm)}" oninput="edit.firm=this.value" autocomplete="off"></label><datalist id="fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>` : ""}
+  <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="ea" placeholder="Summa" value="${e.amount ? fmt(e.amount) : ""}" oninput="edit.amount=digits(this.value);this.value=edit.amount?fmt(edit.amount):''"></label>
+  <label class="field">${ic("calendar-bold-duotone", 22)}<input type="date" value="${e.date}" max="${today()}" onchange="edit.date=this.value||today()"></label>
+  <label class="field">${ic("pen-2-bold-duotone", 22)}<input value="${esc(e.note)}" oninput="edit.note=this.value" placeholder="Izoh (ixtiyoriy)"></label>
+  <div class="row" style="margin-top:4px">${e.id ? `<button class="btn red" onclick="delItem()">${ic("trash-bin-trash-bold", 20)} O'chirish</button>` : ""}<button class="btn b" id="esave" onclick="saveForm()">${ic("check-circle-bold", 20)} Saqlash</button></div>`);
 }
 async function saveForm(){
-  const e = edit; if(!(e.amount > 0)) return toast("Summani kiriting");
-  if(e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" && !e.firm.trim()) return toast("Firma nomini kiriting");
+  const e = edit; if(!(e.amount > 0)) return toast("Summani kiriting", "danger-triangle-bold");
+  if(e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" && !e.firm.trim()) return toast("Firma nomini kiriting", "danger-triangle-bold");
   const b = $("#esave"); b.disabled = true;
   try{
     const body = {kind:e.kind, scope:e.scope, cat:e.kind === "savdo" ? "savdo" : e.cat, amount:e.amount, firm:e.firm, note:e.note, date:e.date};
-    if(e.id){ const j = await api("update", {id:e.id, ...body}); ROWS = ROWS.map(r => r.id === e.id ? j.row : r); toast("Saqlandi"); }
-    else { const j = await api("add", body); afterSave(j); toast("✅ Qo'shildi"); }
-    closeForm(); draw();
-  }catch(err){ b.disabled = false; toast("⚠️ " + esc(err.message)); }
+    if(e.id){ const j = await api("update", {id:e.id, ...body}); ROWS = ROWS.map(r => r.id === e.id ? j.row : r); toast("Saqlandi"); closeModal(); draw(); }
+    else { const j = await api("add", body); closeModal(); afterSave(j); toast("Qo'shildi"); }
+  }catch(err){ b.disabled = false; toast(esc(err.message), "danger-triangle-bold"); }
 }
 async function delItem(){
-  if(!confirm("Bu xarajat o'chirilsinmi?")) return;
-  try{ await api("del", {id:edit.id}); ROWS = ROWS.filter(r => r.id !== edit.id); closeForm(); draw(); toast("O'chirildi"); }
-  catch(e){ toast("⚠️ " + esc(e.message)); }
+  if(!confirm("Bu yozuv o'chirilsinmi?")) return;
+  try{ await api("del", {id:edit.id}); ROWS = ROWS.filter(r => r.id !== edit.id); closeModal(); draw(); toast("O'chirildi"); }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
 }
 
-if(T){ shell(); load(); } else loginView();
+if(T){ shell(); drawNav(); load(); } else loginView();
 </script>
 </body>
 </html>
