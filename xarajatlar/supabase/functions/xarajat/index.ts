@@ -146,12 +146,30 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
   return { items: Array.isArray(tu?.input?.items) ? tu.input.items : [], reply: String(tu?.input?.reply ?? "") };
 }
 
+/* ---------------- Gemini: band bo'lsa boshqa modelga o'tadi ---------------- */
+const G_MODELS = [...new Set([GEMINI_MODEL, "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"])];
+async function gemini(body: Row): Promise<string> {
+  let last = "";
+  for (const model of G_MODELS) {
+    for (let k = 0; k < 2; k++) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+      });
+      const j: Row = await r.json().catch(() => ({}));
+      if (r.ok) return (j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("");
+      last = `${model}: ${j?.error?.message ?? r.status}`;
+      console.error("Gemini", last);
+      if (r.status === 400 || r.status === 401 || r.status === 403) throw new Error("Gemini kaliti: " + (j?.error?.message ?? r.status));
+      if (r.status === 404) break;                       // bunday model yo'q: keyingisiga
+      if (k === 0) await new Promise((ok) => setTimeout(ok, 700)); // band: bir oz kutib, qayta
+    }
+  }
+  throw new Error("Gemini hozir band, birozdan keyin qayta urinib ko'ring");
+}
+
 /* ---------------- Gemini: matndan xarajatlar (tekin) ---------------- */
 async function geminiParse(text: string): Promise<{ items: Row[]; reply: string }> {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
+  const txt = await gemini({
       system_instruction: { parts: [{ text: SYSTEM(today()) }] },
       contents: [{ role: "user", parts: [{ text: text.slice(0, 2000) }] }],
       generationConfig: {
@@ -180,11 +198,8 @@ async function geminiParse(text: string): Promise<{ items: Row[]; reply: string 
           required: ["items"],
         },
       },
-    }),
-  });
-  const j: Row = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error("Gemini: " + (j?.error?.message ?? r.status));
-  const out = JSON.parse((j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("") || "{}");
+    });
+  const out = JSON.parse(txt || "{}");
   return { items: Array.isArray(out.items) ? out.items : [], reply: String(out.reply ?? "") };
 }
 
@@ -192,20 +207,13 @@ async function geminiParse(text: string): Promise<{ items: Row[]; reply: string 
 async function transcribe(b64: string, mime: string): Promise<string> {
   await cfg();
   if (!GEMINI_KEY) throw new Error("Ovozli yozish uchun Gemini kaliti hali qo'shilmagan. Hozircha matn bilan yozing ✍️");
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
+  return (await gemini({
       contents: [{ parts: [
         { text: "Audioda o'zbek tilida (ba'zan rus so'zlari aralash) xarajat haqida gapirilgan. Aytilganini aynan o'zbek lotin yozuvida, imlo xatosiz yoz. Raqamlarni raqam bilan yoz (masalan 250 ming). Faqat matnni qaytar, boshqa hech narsa qo'shma. Audio jim bo'lsa bo'sh qaytar." },
         { inline_data: { mime_type: mime, data: b64 } },
       ] }],
       generationConfig: { temperature: 0 },
-    }),
-  });
-  const j: Row = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error("Gemini: " + (j?.error?.message ?? r.status));
-  return (j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("").trim();
+    })).trim();
 }
 
 /* ---------------- Oddiy tahlilchi (Claude kaliti bo'lmasa yoki ishlamasa) ---------------- */
@@ -388,6 +396,7 @@ async function onTg(upd: Row) {
 
   const m = upd.message;
   const text: string = (m.text ?? m.caption ?? "").trim();
+  console.log("tg msg:", m.voice ? "[voice]" : text.slice(0, 80));
   const menu: Record<string, () => Promise<unknown>> = {
     "/start": () => send(chat, HELP), "ℹ️ Yordam": () => send(chat, HELP), "/yordam": () => send(chat, HELP),
     "📅 Bugun": async () => send(chat, await reportText("today")), "/bugun": async () => send(chat, await reportText("today")),
