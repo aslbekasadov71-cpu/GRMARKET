@@ -103,7 +103,8 @@ const dAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return iso
 const mStart = (k = 0) => { const d = new Date(); return iso(new Date(d.getFullYear(), d.getMonth() + k, 1)); };
 const mEnd = (k = 0) => { const d = new Date(); return iso(new Date(d.getFullYear(), d.getMonth() + k + 1, 0)); };
 const dLabel = d => d === today() ? "Bugun" : d === dAgo(1) ? "Kecha" : (() => { const x = new Date(d + "T00:00:00"); return x.getDate() + "-" + MON[x.getMonth()]; })();
-const cat = (s, c) => CATS[s]?.[c] || ["🧩", c];
+const cat = (s, c) => c === "savdo" ? ["💰", "Kunlik savdo"] : CATS[s]?.[c] || ["🧩", c];
+const isS = r => r.kind === "savdo";
 
 let T = "", ROWS = [], per = "today", scope = "all", busy = false, edit = null;
 try{ T = localStorage.getItem("xr_t") || ""; }catch(e){}
@@ -138,6 +139,7 @@ function range(){
   return [mStart(-1), mEnd(-1)];
 }
 const inRange = r => { const [a, b] = range(); return r.spent_on >= a && r.spent_on <= b && (scope === "all" || r.scope === scope); };
+const inDates = r => { const [a, b] = range(); return r.spent_on >= a && r.spent_on <= b; };
 
 async function load(){
   try{
@@ -155,7 +157,7 @@ function shell(){
     <h2><span>Ro'yxat</span></h2><div id="list"><div class="empty"><span class="thinking"></span></div></div>`;
   if(!document.querySelector(".composer")){
     const c = document.createElement("div"); c.className = "composer";
-    c.innerHTML = `<div class="hint" id="hint">Yozing yoki 🎤 bosib ayting: «svetga 250 ming, taksi 20 ming»</div>
+    c.innerHTML = `<div class="hint" id="hint">Yozing yoki 🎤 ayting: «svetga 250 ming» yoki «bugungi savdo 3 mln»</div>
     <div class="cbox"><button class="rb plus" onclick="openForm()" aria-label="Qo'lda qo'shish">＋</button>
       <form class="cin" onsubmit="event.preventDefault();sendText()"><input id="tx" placeholder="Xarajatni yozing..." autocomplete="off" enterkeyhint="send">
       <button class="rb send" type="submit" aria-label="Yuborish">➤</button></form>
@@ -169,10 +171,11 @@ function draw(){
   if(!$("#pchips")) return;
   $("#pchips").innerHTML = PER.map(([k, l]) => `<button class="chip ${per===k?"on":""}" onclick="per='${k}';draw()">${l}</button>`).join("");
   $("#sseg").innerHTML = [["all","Hammasi"],["dokon","🏪 Do'kon"],["shaxsiy","👤 Shaxsiy"]].map(([k, l]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';draw()">${l}</button>`).join("");
-  const rs = ROWS.filter(inRange), tot = rs.reduce((a, r) => a + +r.amount, 0);
+  const allR = ROWS.filter(inRange), rs = allR.filter(r => !isS(r)), tot = rs.reduce((a, r) => a + +r.amount, 0);
+  const sv = ROWS.filter(inDates).filter(isS).reduce((a, r) => a + +r.amount, 0);
   const sh = rs.filter(r => r.scope === "dokon").reduce((a, r) => a + +r.amount, 0), me = tot - sh;
   const pl = PER.find(p => p[0] === per)[1];
-  $("#hero").innerHTML = `<div class="hero"><div class="lbl">${pl} · ${rs.length} ta xarajat</div><div class="big">${som(tot)}</div>
+  $("#hero").innerHTML = (sv && scope !== "shaxsiy" ? `<div class="tiles" style="margin:0 0 10px"><div class="tile" style="background:var(--accl);color:var(--acc)"><small>💰 Savdo</small><b>${fmt(sv)}</b></div><div class="tile" style="background:var(--card);border:1px solid var(--line)"><small>${sv - tot >= 0 ? "✅ Qoldi" : "🔻 Kam"}</small><b>${fmt(sv - tot)}</b></div></div>` : "") + `<div class="hero"><div class="lbl">${pl} · ${rs.length} ta xarajat</div><div class="big">${som(tot)}</div>
     ${scope === "all" ? `<div class="split"><i style="width:${tot ? sh / tot * 100 : 0}%;background:var(--shop)"></i><i style="width:${tot ? me / tot * 100 : 0}%;background:var(--me)"></i></div>
     <div class="tiles"><div class="tile t-shop"><small>🏪 Do'kon</small><b>${fmt(sh)}</b></div><div class="tile t-me"><small>👤 Shaxsiy</small><b>${fmt(me)}</b></div></div>` : ""}</div>`;
   // kunlik grafik
@@ -189,12 +192,12 @@ function draw(){
   $("#cats").innerHTML = cs.length ? `<h2><span>Turlar bo'yicha</span></h2>` + cs.map(([k, v]) => { const [s, c] = k.split("|"), x = cat(s, c);
     return `<div class="cat"><div class="ico" style="background:${SC[s].l}">${x[0]}</div><div class="grow"><b>${esc(x[1])}</b><small>${SC[s].n} · ${tot ? Math.round(v / tot * 100) : 0}%</small><div class="pbar"><i style="width:${v / cm * 100}%;background:${SC[s].c}"></i></div></div><div class="amt">${fmt(v)}</div></div>`; }).join("") : "";
   // ro'yxat
-  const g = {}; rs.forEach(r => (g[r.spent_on] ||= []).push(r));
-  $("#list").innerHTML = rs.length ? Object.entries(g).map(([d, items]) => `<h2><span>${dLabel(d)}</span><span>${som(items.reduce((a, r) => a + +r.amount, 0))}</span></h2>` +
+  const g = {}; allR.forEach(r => (g[r.spent_on] ||= []).push(r));
+  $("#list").innerHTML = allR.length ? Object.entries(g).map(([d, items]) => `<h2><span>${dLabel(d)}</span><span>${som(items.filter(r => !isS(r)).reduce((a, r) => a + +r.amount, 0))}</span></h2>` +
     items.map(r => { const x = cat(r.scope, r.cat);
-      return `<button class="item" onclick="openForm(${r.id})"><div class="ico" style="background:${SC[r.scope].l}">${x[0]}</div>
-      <div class="grow"><b>${esc(r.firm || x[1])}</b><small><span class="tag" style="background:${SC[r.scope].l};color:${SC[r.scope].c}">${SC[r.scope].n}</span>${r.firm ? esc(x[1]) + " · " : ""}${esc(r.note || "")}${r.source?.includes("voice") ? " 🎤" : ""}</small></div>
-      <div class="amt">−${fmt(r.amount)}</div></button>`; }).join("")).join("")
+      return `<button class="item" onclick="openForm(${r.id})"><div class="ico" style="background:${isS(r) ? "var(--accl)" : SC[r.scope].l}">${x[0]}</div>
+      <div class="grow"><b>${esc(r.firm || x[1])}</b><small><span class="tag" style="background:${isS(r) ? "var(--accl)" : SC[r.scope].l};color:${isS(r) ? "var(--acc)" : SC[r.scope].c}">${isS(r) ? "Savdo" : SC[r.scope].n}</span>${r.firm ? esc(x[1]) + " · " : ""}${esc(r.note || "")}${r.source?.includes("voice") ? " 🎤" : ""}</small></div>
+      <div class="amt" style="${isS(r) ? "color:var(--acc)" : ""}">${isS(r) ? "+" : "−"}${fmt(r.amount)}</div></button>`; }).join("")).join("")
     : `<div class="empty"><div class="e">🧾</div>Bu davrda xarajat yo'q<br><small>Pastda yozing yoki 🎤 bosing</small></div>`;
 }
 
@@ -260,8 +263,8 @@ async function onRecStop(){
 /* ---------- qo'lda qo'shish / tahrirlash ---------- */
 function openForm(id){
   const r = id ? ROWS.find(x => x.id === id) : null;
-  edit = r ? {id:r.id, scope:r.scope, cat:r.cat, amount:r.amount, firm:r.firm || "", note:r.note || "", date:r.spent_on}
-           : {id:null, scope:scope === "shaxsiy" ? "shaxsiy" : "dokon", cat:scope === "shaxsiy" ? "oziq" : "firma", amount:"", firm:"", note:"", date:today()};
+  edit = r ? {id:r.id, kind:r.kind || "xarajat", scope:r.scope, cat:r.cat, amount:r.amount, firm:r.firm || "", note:r.note || "", date:r.spent_on}
+           : {id:null, kind:"xarajat", scope:scope === "shaxsiy" ? "shaxsiy" : "dokon", cat:scope === "shaxsiy" ? "oziq" : "firma", amount:"", firm:"", note:"", date:today()};
   closeForm();
   const s = document.createElement("div"); s.className = "sheet"; s.id = "sheet";
   s.innerHTML = `<div id="ef"></div>`; s.addEventListener("click", e => { if(e.target === s) closeForm(); });
@@ -271,9 +274,10 @@ function closeForm(){ $("#sheet")?.remove(); }
 function drawForm(){
   const e = edit, firms = [...new Set(ROWS.map(r => r.firm).filter(Boolean))];
   $("#ef").innerHTML = `<h1 style="font-size:22px;margin-bottom:12px">${e.id ? "Tahrirlash" : "Yangi xarajat"}</h1>
-  <div class="seg">${["dokon","shaxsiy"].map(k => `<button class="${e.scope===k?"on":""}" onclick="edit.scope='${k}';if(!CATS['${k}'][edit.cat])edit.cat='boshqa';drawForm()">${k === "dokon" ? "🏪 Do'kon" : "👤 Shaxsiy"}</button>`).join("")}</div>
-  <div class="chips" style="flex-wrap:wrap">${Object.entries(CATS[e.scope]).map(([k, [i, l]]) => `<button class="chip ${e.cat===k?"on":""}" onclick="edit.cat='${k}';drawForm()">${i} ${l}</button>`).join("")}</div>
-  ${e.scope === "dokon" && e.cat === "firma" ? `<label class="field"><small>Firma nomi</small><input list="fl" value="${esc(e.firm)}" oninput="edit.firm=this.value" autocomplete="off"></label><datalist id="fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>` : ""}
+  <div class="seg">${[["xarajat","💸 Xarajat"],["savdo","💰 Savdo"]].map(([k, l]) => `<button class="${e.kind===k?"on":""}" onclick="edit.kind='${k}';drawForm()">${l}</button>`).join("")}</div>
+  ${e.kind === "savdo" ? "" : `<div class="seg">${["dokon","shaxsiy"].map(k => `<button class="${e.scope===k?"on":""}" onclick="edit.scope='${k}';if(!CATS['${k}'][edit.cat])edit.cat='boshqa';drawForm()">${k === "dokon" ? "🏪 Do'kon" : "👤 Shaxsiy"}</button>`).join("")}</div>
+  <div class="chips" style="flex-wrap:wrap">${Object.entries(CATS[e.scope]).map(([k, [i, l]]) => `<button class="chip ${e.cat===k?"on":""}" onclick="edit.cat='${k}';drawForm()">${i} ${l}</button>`).join("")}</div>`}
+  ${e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" ? `<label class="field"><small>Firma nomi</small><input list="fl" value="${esc(e.firm)}" oninput="edit.firm=this.value" autocomplete="off"></label><datalist id="fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>` : ""}
   <label class="field"><small>Summa</small><input inputmode="numeric" id="ea" value="${e.amount ? fmt(e.amount) : ""}" oninput="edit.amount=digits(this.value)" placeholder="0"></label>
   <div class="row"><label class="field" style="flex:1"><small>Sana</small><input type="date" value="${e.date}" max="${today()}" onchange="edit.date=this.value||today()"></label></div>
   <label class="field"><small>Izoh</small><input value="${esc(e.note)}" oninput="edit.note=this.value" placeholder="ixtiyoriy"></label>
@@ -282,10 +286,10 @@ function drawForm(){
 }
 async function saveForm(){
   const e = edit; if(!(e.amount > 0)) return toast("Summani kiriting");
-  if(e.scope === "dokon" && e.cat === "firma" && !e.firm.trim()) return toast("Firma nomini kiriting");
+  if(e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" && !e.firm.trim()) return toast("Firma nomini kiriting");
   const b = $("#esave"); b.disabled = true;
   try{
-    const body = {scope:e.scope, cat:e.cat, amount:e.amount, firm:e.firm, note:e.note, date:e.date};
+    const body = {kind:e.kind, scope:e.scope, cat:e.kind === "savdo" ? "savdo" : e.cat, amount:e.amount, firm:e.firm, note:e.note, date:e.date};
     if(e.id){ const j = await api("update", {id:e.id, ...body}); ROWS = ROWS.map(r => r.id === e.id ? j.row : r); toast("Saqlandi"); }
     else { const j = await api("add", body); afterSave(j); toast("✅ Qo'shildi"); }
     closeForm(); draw();

@@ -63,34 +63,39 @@ const CATS: Record<string, Record<string, [string, string]>> = {
   },
 };
 const SCOPE: Record<string, string> = { dokon: "🏪 Do'kon", shaxsiy: "👤 Shaxsiy" };
-const ALL_CATS = [...new Set([...Object.keys(CATS.dokon), ...Object.keys(CATS.shaxsiy)])];
-const catLabel = (scope: string, cat: string) => { const c = CATS[scope]?.[cat]; return c ? `${c[0]} ${c[1]}` : `🧩 ${cat}`; };
+const ALL_CATS = [...new Set([...Object.keys(CATS.dokon), ...Object.keys(CATS.shaxsiy), "savdo"])];
+const catLabel = (scope: string, cat: string) => { if (cat === "savdo") return "💰 Savdo"; const c = CATS[scope]?.[cat]; return c ? `${c[0]} ${c[1]}` : `🧩 ${cat}`; };
 // Do'kon <-> shaxsiy almashtirganda turini moslash
 const SWAP: Record<string, string> = { svet: "kommunal", gaz: "kommunal", soliq: "boshqa", ijara: "uy", oylik: "boshqa", firma: "boshqa", tovar: "uy", kommunal: "svet", uy: "boshqa", oziq: "tovar" };
 const swapCat = (to: string, cat: string) => (CATS[to][cat] ? cat : CATS[to][SWAP[cat]] ? SWAP[cat] : "boshqa");
 
 function cleanItem(x: Row, raw: string | null, source: string) {
-  const scope = x.scope === "shaxsiy" ? "shaxsiy" : "dokon";
-  const cat = CATS[scope][x.cat] ? x.cat : "boshqa";
+  const kind = x.kind === "savdo" || x.cat === "savdo" ? "savdo" : "xarajat";
+  const scope = kind === "savdo" ? "dokon" : x.scope === "shaxsiy" ? "shaxsiy" : "dokon";
+  const cat = kind === "savdo" ? "savdo" : CATS[scope][x.cat] ? x.cat : "boshqa";
   const amount = Math.round(Number(String(x.amount ?? "").replace(/[^\d.]/g, "")) || 0);
   let date = typeof x.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : today();
   if (date > today() || date < dAgo(400)) date = today();
-  const firm = scope === "dokon" && cat === "firma" ? String(x.firm ?? "").trim().slice(0, 60) || null : null;
+  const firm = kind === "xarajat" && scope === "dokon" && cat === "firma" ? String(x.firm ?? "").trim().slice(0, 60) || null : null;
   const note = String(x.note ?? "").trim().slice(0, 120) || null;
-  return { scope, cat, amount, firm, note, spent_on: date, source, raw: raw ? raw.slice(0, 1000) : null };
+  return { kind, scope, cat, amount, firm, note, spent_on: date, source, raw: raw ? raw.slice(0, 1000) : null };
 }
 
 /* ---------------- Claude: matndan xarajatlar ---------------- */
 const SYSTEM = (d: string) => `Sen o'zbek tilida gapiradigan do'kon egasining xarajat hisobchisisan. Bugun ${d}.
 Foydalanuvchi xarajatlarini oddiy gap bilan (ba'zan rus so'zlari aralash, xatolar bilan) yozadi yoki aytadi. Har bir alohida xarajat uchun bitta yozuv chiqar.
 
-scope — JUDA MUHIM QOIDA:
+kind — avval aniqla:
+- "savdo" — do'kon savdosi/tushumi, kassaga kelgan pul: "savdo", "bugungi savdo", "kassa", "tushum", "sotdim", "savdo qildim", "kirim". Bunda scope="dokon", cat="savdo".
+- "xarajat" — qolgan hammasi (pul chiqib ketgan).
+
+scope (faqat xarajat uchun) — JUDA MUHIM QOIDA:
 - Sukut bo'yicha har doim "dokon".
 - Faqat foydalanuvchi o'sha xarajat haqida ANIQ aytsa "shaxsiy" qil: "uyga", "uy uchun", "uyimga", "o'zimga", "o'zim uchun", "shaxsiy", "oilaga", "oilam uchun".
 - Bu so'zlar bo'lmasa — o'zingdan taxmin qilma, hatto taksi, ovqat, dadam/opam uchun bo'lsa ham "dokon" yoz.
 - Bitta gapda bir nechta xarajat bo'lsa, har biri uchun alohida qaror qil (shaxsiy so'z faqat o'zi tegishli xarajatga ta'sir qiladi).
 
-cat (scope ga mos):
+cat (scope ga mos; savdo bo'lsa "savdo"):
 - dokon: firma, tovar, svet, gaz, soliq, ijara, oylik, boshqa
   · firma — firma/optomchi nomi aytilgan to'lov (nomini "firm" ga yoz)
   · tovar — sotish uchun mahsulot/tovar olish, firma nomi aytilmagan (sigaret, qop, paket, ichimlik, non, shirinlik va h.k.)
@@ -124,6 +129,7 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
               items: {
                 type: "object",
                 properties: {
+                  kind: { type: "string", enum: ["xarajat", "savdo"] },
                   scope: { type: "string", enum: ["dokon", "shaxsiy"] },
                   cat: { type: "string", enum: ALL_CATS },
                   amount: { type: "integer", description: "so'mda" },
@@ -178,6 +184,7 @@ const G_ITEMS = {
   items: {
     type: "OBJECT",
     properties: {
+      kind: { type: "STRING", enum: ["xarajat", "savdo"] },
       scope: { type: "STRING", enum: ["dokon", "shaxsiy"] },
       cat: { type: "STRING", enum: ALL_CATS },
       amount: { type: "INTEGER" },
@@ -185,7 +192,7 @@ const G_ITEMS = {
       note: { type: "STRING" },
       date: { type: "STRING" },
     },
-    required: ["scope", "cat", "amount"],
+    required: ["kind", "scope", "cat", "amount"],
   },
 };
 // Ovoz: bitta so'rovda ham eshitadi, ham tushunadi (2 marta tezroq)
@@ -249,10 +256,11 @@ const KW: [RegExp, string, string][] = [
   [/uy-?ro'?zg'?or|mebel|idish|remont|ta'?mir/i, "shaxsiy", "uy"],
 ];
 function parseSum(t: string): number {
-  const m = t.toLowerCase().replace(/(\d)[\s.](?=\d{3}\b)/g, "$1").match(/(\d+(?:[.,]\d+)?)\s*(mln|million|milion|m\b|ming|k\b)?/);
-  if (!m) return 0;
-  const v = parseFloat(m[1].replace(",", "."));
-  return Math.round(v * (m[2] ? (/^(mln|million|milion|m)$/.test(m[2]) ? 1e6 : 1e3) : 1));
+  const ms = [...t.toLowerCase().replace(/(\d)[\s.](?=\d{3}\b)/g, "$1").matchAll(/(\d+(?:[.,]\d+)?)\s*(mln|million|milion|m\b|ming|k\b)?/g)];
+  if (!ms.length) return 0;
+  const val = (m: RegExpMatchArray) => parseFloat(m[1].replace(",", ".")) * (m[2] ? (/^(mln|million|milion|m)$/.test(m[2]) ? 1e6 : 1e3) : 1);
+  const withUnit = ms.filter((m) => m[2]);
+  return Math.round(withUnit.length ? withUnit.reduce((a, m) => a + val(m), 0) : val(ms[0]));   // "3 mln 200 ming" = 3 200 000
 }
 function simpleParse(text: string): { items: Row[]; reply: string } {
   const date = /kecha/i.test(text) ? dAgo(1) : today();
@@ -260,6 +268,7 @@ function simpleParse(text: string): { items: Row[]; reply: string } {
   for (const seg of text.split(/[,;\n]|\bva\b|\bham\b/i)) {
     const amount = parseSum(seg);
     if (!amount) continue;
+    if (/savdo|tushum|kassa|sotdim|sotuv|kirim/i.test(seg)) { items.push({ kind: "savdo", scope: "dokon", cat: "savdo", amount, note: "", date }); continue; }
     const k = KW.find(([re]) => re.test(seg));
     const scope = /\buy(ga|imga|im|imiz)?\b|uy uchun|o'?zimga|o'?zim uchun|shaxsiy|oilaga|oilam/i.test(seg) ? "shaxsiy" : "dokon";
     let cat = k ? k[2] : "boshqa";
@@ -314,7 +323,8 @@ const MON3 = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "ok
 const dShort = (d: string) => d === today() ? "Bugun" : d === dAgo(1) ? "Kecha" : `${+d.slice(8)}-${MON3[+d.slice(5, 7) - 1]}`;
 const hhmm = (ts: string) => new Date(Date.parse(ts) + OFF).toISOString().slice(11, 16);
 const bar = (v: number, mx: number) => { const n = Math.max(1, Math.round(v / mx * 8)); return "▰".repeat(n) + "▱".repeat(8 - n); };
-const what = (r: Row) => esc(r.firm || r.note || CATS[r.scope]?.[r.cat]?.[1] || r.cat);
+const what = (r: Row) => esc(r.firm || r.note || (r.kind === "savdo" ? "Kunlik savdo" : CATS[r.scope]?.[r.cat]?.[1]) || r.cat);
+const icon = (r: Row) => r.kind === "savdo" ? "💰" : CATS[r.scope]?.[r.cat]?.[0] ?? "🧩";
 const RANGES: Record<string, string> = { today: "📅 Bugun", yday: "◀️ Kecha", week: "🗓 7 kun", month: "📊 Shu oy", prev: "⏪ O'tgan oy" };
 function rangeOf(range: string): [string, string, string] {
   const t = today();
@@ -336,44 +346,52 @@ async function reportText(range: string) {
   const [from, to, title] = rangeOf(range);
   const { data } = await db.from("xr_expenses").select("*").gte("spent_on", from).lte("spent_on", to)
     .order("spent_on", { ascending: false }).order("created_at", { ascending: false }).limit(5000);
-  const rs = data ?? [];
-  if (!rs.length) return `${title}\n\nBu davrda xarajat yo'q.`;
-  const tot = total(rs), shop = total(rs.filter((r) => r.scope === "dokon")), me = tot - shop;
+  const all = data ?? [];
+  if (!all.length) return `${title}\n\nBu davrda yozuv yo'q.`;
+  const rs = all.filter((r) => r.kind !== "savdo"), sales = all.filter((r) => r.kind === "savdo");
+  const tot = total(rs), sv = total(sales), shop = total(rs.filter((r) => r.scope === "dokon")), me = tot - shop;
   const oneDay = from === to;
-  let t = `${title}\n\n💸 <b>Jami: ${som(tot)}</b> · ${rs.length} ta\n`;
-  if (shop && me) t += `🏪 Do'kon: <b>${fmt(shop)}</b>   👤 Shaxsiy: <b>${fmt(me)}</b>\n`;
-  else t += shop ? `🏪 Hammasi do'kon xarajati\n` : `👤 Hammasi shaxsiy xarajat\n`;
+  let t = `${title}\n\n`;
+  if (sv) t += `💰 Savdo: <b>${som(sv)}</b>\n`;
+  t += `💸 Xarajat: <b>${som(tot)}</b>${rs.length ? ` · ${rs.length} ta` : ""}\n`;
+  if (rs.length && shop && me) t += `     🏪 do'kon ${fmt(shop)} · 👤 shaxsiy ${fmt(me)}\n`;
+  if (sv) t += `${sv - tot >= 0 ? "✅" : "🔻"} <b>Qoldi: ${som(sv - tot)}</b>\n`;
   if (!oneDay) {
-    const days = new Set(rs.map((r) => r.spent_on)).size;
-    t += `📈 O'rtacha: <b>${fmt(tot / Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1))}</b> so'm/kun · ${days} kunda xarajat bo'lgan\n`;
+    const nd = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1);
+    t += `📈 Kuniga o'rtacha: ${sv ? `savdo ${fmt(sv / nd)} · ` : ""}xarajat ${fmt(tot / nd)}\n`;
   }
-  // turlar
-  const by: Record<string, number> = {};
-  rs.forEach((r) => { const k = r.scope + "|" + r.cat; by[k] = (by[k] ?? 0) + Number(r.amount); });
-  const cats = Object.entries(by).sort((a, b) => b[1] - a[1]), cm = cats[0][1];
-  t += `\n<b>Nimaga ketdi:</b>\n`;
-  cats.forEach(([k, v]) => { const [sc, c] = k.split("|"); t += `${catLabel(sc, c)}\n<code>${bar(v, cm)}</code> ${fmt(v)} · ${Math.round(v / tot * 100)}%\n`; });
+  if (rs.length) {
+    const by: Record<string, number> = {};
+    rs.forEach((r) => { const k = r.scope + "|" + r.cat; by[k] = (by[k] ?? 0) + Number(r.amount); });
+    const cats = Object.entries(by).sort((a, b) => b[1] - a[1]), cm = cats[0][1];
+    t += `\n<b>Xarajat nimaga ketdi:</b>\n`;
+    cats.forEach(([k, v]) => { const [sc, c] = k.split("|"); t += `${catLabel(sc, c)}\n<code>${bar(v, cm)}</code> ${fmt(v)} · ${Math.round(v / tot * 100)}%\n`; });
+  }
   if (oneDay) {
     t += `\n<b>Qachon, nima:</b>\n`;
-    [...rs].reverse().slice(-40).forEach((r) => (t += `<code>${hhmm(r.created_at)}</code> ${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — <b>${fmt(+r.amount)}</b>${r.scope === "shaxsiy" ? " 👤" : ""}\n`));
+    [...all].reverse().slice(-40).forEach((r) => (t += `<code>${hhmm(r.created_at)}</code> ${icon(r)} ${what(r)} — <b>${r.kind === "savdo" ? "+" : ""}${fmt(+r.amount)}</b>${r.scope === "shaxsiy" ? " 👤" : ""}\n`));
   } else {
-    // kunlar
     const dd: Record<string, Row[]> = {};
-    rs.forEach((r) => (dd[r.spent_on] ||= []).push(r));
+    all.forEach((r) => (dd[r.spent_on] ||= []).push(r));
     const dayList = Object.entries(dd);
     t += `\n<b>Kunlar bo'yicha:</b>\n`;
     if (range === "week") {
       dayList.forEach(([d, items]) => {
-        t += `\n📆 <b>${dShort(d)}</b> — ${som(total(items))}\n`;
-        items.slice(0, 12).forEach((r) => (t += `   ${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — ${fmt(+r.amount)}\n`));
-        if (items.length > 12) t += `   … yana ${items.length - 12} ta\n`;
+        const s1 = total(items.filter((r) => r.kind === "savdo")), x1 = total(items.filter((r) => r.kind !== "savdo"));
+        t += `\n📆 <b>${dShort(d)}</b> — ${s1 ? `💰 ${fmt(s1)} · ` : ""}💸 ${fmt(x1)}${s1 ? ` · qoldi <b>${fmt(s1 - x1)}</b>` : ""}\n`;
+        items.filter((r) => r.kind !== "savdo").slice(0, 12).forEach((r) => (t += `   ${icon(r)} ${what(r)} — ${fmt(+r.amount)}\n`));
       });
     } else {
-      const dm = Math.max(...dayList.map(([, i]) => total(i)));
-      dayList.forEach(([d, items]) => (t += `<code>${dShort(d).padEnd(6)} ${bar(total(items), dm)}</code> ${fmt(total(items))}\n`));
-      t += `\n<b>Eng katta 5 ta xarajat:</b>\n`;
-      [...rs].sort((a, b) => b.amount - a.amount).slice(0, 5)
-        .forEach((r) => (t += `${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — <b>${fmt(+r.amount)}</b> · ${dShort(r.spent_on)}\n`));
+      const dm = Math.max(...dayList.map(([, i]) => total(i.filter((r) => r.kind !== "savdo"))), 1);
+      dayList.forEach(([d, items]) => {
+        const s1 = total(items.filter((r) => r.kind === "savdo")), x1 = total(items.filter((r) => r.kind !== "savdo"));
+        t += `<code>${dShort(d).padEnd(6)} ${bar(x1, dm)}</code> ${fmt(x1)}${s1 ? ` · 💰${fmt(s1)}` : ""}\n`;
+      });
+      if (rs.length) {
+        t += `\n<b>Eng katta 5 ta xarajat:</b>\n`;
+        [...rs].sort((a, b) => b.amount - a.amount).slice(0, 5)
+          .forEach((r) => (t += `${icon(r)} ${what(r)} — <b>${fmt(+r.amount)}</b> · ${dShort(r.spent_on)}\n`));
+      }
     }
   }
   return t.length > 4000 ? t.slice(0, 3990) + "…" : t;
@@ -395,15 +413,14 @@ const MAIN = {
 const send = (chat: number, text: string, reply_markup: unknown = MAIN) =>
   tg("sendMessage", { chat_id: chat, text, parse_mode: "HTML", reply_markup, link_preview_options: { is_disabled: true } });
 const itemKb = (rows: Row[]) => ({
-  inline_keyboard: rows.slice(0, 6).map((r) => [
-    { text: `🔁 ${r.scope === "dokon" ? "Shaxsiyga" : "Do'konga"} (${fmt(+r.amount)})`, callback_data: `sw:${r.id}` },
-    { text: "🗑", callback_data: `del:${r.id}` },
-  ]),
+  inline_keyboard: rows.slice(0, 6).map((r) => r.kind === "savdo"
+    ? [{ text: `🗑 Savdoni o'chirish (${fmt(+r.amount)})`, callback_data: `del:${r.id}` }]
+    : [{ text: `🔁 ${r.scope === "dokon" ? "Shaxsiyga" : "Do'konga"} (${fmt(+r.amount)})`, callback_data: `sw:${r.id}` }, { text: "🗑", callback_data: `del:${r.id}` }]),
 });
 const savedText = (rows: Row[]) =>
   `✅ <b>Yozildi</b> · ${rows[0]?.spent_on === today() ? "bugun " + hhmm(rows[0].created_at) : dateUz(rows[0]?.spent_on ?? today())}\n\n` +
-  rows.map((r) => `${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — <b>${fmt(+r.amount)}</b> <i>${r.scope === "shaxsiy" ? "👤 shaxsiy" : catLabel(r.scope, r.cat).replace(/^\S+ /, "")}</i>`).join("\n") +
-  (rows.length > 1 ? `\n\n💸 Jami: <b>${som(total(rows))}</b>` : "");
+  rows.map((r) => r.kind === "savdo" ? `💰 <b>Savdo +${fmt(+r.amount)}</b>${r.note ? ` <i>${esc(r.note)}</i>` : ""}` : `${icon(r)} ${what(r)} — <b>${fmt(+r.amount)}</b> <i>${r.scope === "shaxsiy" ? "👤 shaxsiy" : catLabel(r.scope, r.cat).replace(/^\S+ /, "")}</i>`).join("\n") +
+  (rows.filter((r) => r.kind !== "savdo").length > 1 ? `\n\n💸 Xarajat jami: <b>${som(total(rows.filter((r) => r.kind !== "savdo")))}</b>` : "");
 
 const HELP = `ℹ️ <b>Qanday ishlatiladi</b>
 
@@ -412,6 +429,7 @@ Xarajatni oddiy gap bilan <b>yozing</b> yoki <b>ovozli xabar</b> yuboring:
 • <i>Coca-Cola firmasiga 3 million berdim, soliq 400 ming</i>
 • <i>Uyga bozorlik 185 ming, taksi 25 ming</i>
 • <i>Kecha sotuvchiga oylik 2 mln berdim</i>
+• <i>Bugungi savdo 3 mln 200 ming</i> — 💰 savdo sifatida yoziladi
 
 Hammasi <b>🏪 Do'kon</b>ga yoziladi. <b>👤 Shaxsiy</b> uchun «uyga», «o'zimga» yoki «shaxsiy» deng.
 Xato bo'lsa, 🔁 yoki 🗑 tugmasini bosing.
@@ -469,7 +487,7 @@ async function onTg(upd: Row) {
       await db.from("xr_expenses").delete().eq("id", id);
       await tg("answerCallbackQuery", { callback_query_id: q.id, text: "🗑 O'chirildi" });
       await send(chat, `🗑 O'chirildi: ${line(r)}`);
-    } else if (act === "sw") {
+    } else if (act === "sw" && r.kind !== "savdo") {
       const to = r.scope === "dokon" ? "shaxsiy" : "dokon";
       const cat = swapCat(to, r.cat);
       await db.from("xr_expenses").update({ scope: to, cat, firm: to === "dokon" ? r.firm : null }).eq("id", id);
