@@ -13,7 +13,7 @@ const db = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { au
 let TG_TOKEN = Deno.env.get("XR_BOT_TOKEN") ?? "";
 const CLAUDE_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const CLAUDE_MODEL = Deno.env.get("CLAUDE_MODEL") ?? "claude-haiku-5-5";
-const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+let GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest";
 const WEB_URL = (Deno.env.get("XR_WEB_URL") ?? "https://xarajatlar.onrender.com").replace(/\/$/, "");
 
@@ -26,12 +26,14 @@ const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 /* ---------------- sozlamalar ---------------- */
-let CFG: Record<string, string> | null = null;
+let CFG: Record<string, string> | null = null, CFG_AT = 0;
 async function cfg(force = false) {
-  if (CFG && !force) return CFG;
+  if (CFG && !force && Date.now() - CFG_AT < 60_000) return CFG;
+  CFG_AT = Date.now();
   const { data } = await db.from("xr_config").select("key,value");
   CFG = Object.fromEntries((data ?? []).map((r: Row) => [r.key, r.value]));
   if (!Deno.env.get("XR_BOT_TOKEN") && CFG!.bot_token) TG_TOKEN = CFG!.bot_token;
+  if (!Deno.env.get("GEMINI_API_KEY") && CFG!.gemini_key) GEMINI_KEY = CFG!.gemini_key;
   return CFG!;
 }
 
@@ -144,8 +146,51 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
   return { items: Array.isArray(tu?.input?.items) ? tu.input.items : [], reply: String(tu?.input?.reply ?? "") };
 }
 
+/* ---------------- Gemini: matndan xarajatlar (tekin) ---------------- */
+async function geminiParse(text: string): Promise<{ items: Row[]; reply: string }> {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM(today()) }] },
+      contents: [{ role: "user", parts: [{ text: text.slice(0, 2000) }] }],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            items: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  scope: { type: "STRING", enum: ["dokon", "shaxsiy"] },
+                  cat: { type: "STRING", enum: ALL_CATS },
+                  amount: { type: "INTEGER" },
+                  firm: { type: "STRING" },
+                  note: { type: "STRING" },
+                  date: { type: "STRING" },
+                },
+                required: ["scope", "cat", "amount"],
+              },
+            },
+            reply: { type: "STRING" },
+          },
+          required: ["items"],
+        },
+      },
+    }),
+  });
+  const j: Row = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Gemini: " + (j?.error?.message ?? r.status));
+  const out = JSON.parse((j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("") || "{}");
+  return { items: Array.isArray(out.items) ? out.items : [], reply: String(out.reply ?? "") };
+}
+
 /* ---------------- Gemini: ovozdan matn ---------------- */
 async function transcribe(b64: string, mime: string): Promise<string> {
+  await cfg();
   if (!GEMINI_KEY) throw new Error("Ovozli yozish uchun Gemini kaliti hali qo'shilmagan. Hozircha matn bilan yozing ✍️");
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
@@ -208,8 +253,10 @@ function simpleParse(text: string): { items: Row[]; reply: string } {
 /* ---------------- saqlash va hisobot ---------------- */
 async function saveFromText(text: string, source: string) {
   let parsed: { items: Row[]; reply: string };
-  if (CLAUDE_KEY) {
-    try { parsed = await claudeParse(text); } catch (e) { console.error(e); parsed = simpleParse(text); }
+  await cfg();
+  const ai = CLAUDE_KEY ? claudeParse : GEMINI_KEY ? geminiParse : null;
+  if (ai) {
+    try { parsed = await ai(text); } catch (e) { console.error(e); parsed = simpleParse(text); }
   } else parsed = simpleParse(text);
   const { items, reply } = parsed;
   const rows = items.map((x) => cleanItem(x, text, source)).filter((x) => x.amount > 0);
@@ -444,7 +491,7 @@ Deno.serve(async (req) => {
     if (path.endsWith("/setup")) {
       const c = await cfg(true);
       if (!c.setup_secret || url.searchParams.get("k") !== c.setup_secret) return new Response("forbidden", { status: 403 });
-      const missing = [["XR_BOT_TOKEN", TG_TOKEN], ["ANTHROPIC_API_KEY", CLAUDE_KEY], ["GEMINI_API_KEY", GEMINI_KEY]].filter((x) => !x[1]).map((x) => x[0]);
+      const missing = [["XR_BOT_TOKEN", TG_TOKEN], ["GEMINI_API_KEY", GEMINI_KEY]].filter((x) => !x[1]).map((x) => x[0]);
       if (!TG_TOKEN) return json({ missing });
       const hook = await tg("setWebhook", { url: `${SB_URL}/functions/v1/xarajat/tg`, secret_token: c.webhook_secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
       await tg("setMyCommands", { commands: [
