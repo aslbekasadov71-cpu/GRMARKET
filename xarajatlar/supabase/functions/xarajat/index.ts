@@ -14,7 +14,7 @@ let TG_TOKEN = Deno.env.get("XR_BOT_TOKEN") ?? "";
 const CLAUDE_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const CLAUDE_MODEL = Deno.env.get("CLAUDE_MODEL") ?? "claude-haiku-5-5";
 let GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest";
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-lite-latest";
 const WEB_URL = (Deno.env.get("XR_WEB_URL") ?? "https://xarajatlar.onrender.com").replace(/\/$/, "");
 
 const CORS = {
@@ -147,58 +147,69 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
 }
 
 /* ---------------- Gemini: band bo'lsa boshqa modelga o'tadi ---------------- */
-const G_MODELS = [...new Set([GEMINI_MODEL, "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"])];
+const G_MODELS = [...new Set([GEMINI_MODEL, "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"])];
 async function gemini(body: Row): Promise<string> {
   let last = "";
   for (const model of G_MODELS) {
     for (let k = 0; k < 2; k++) {
+      // 2.5-flash sukut bo'yicha "o'ylaydi" (sekin) — xarajat yozish uchun kerak emas
+      const b = /^gemini-2\.5-flash$/.test(model) ? { ...body, generationConfig: { ...(body.generationConfig ?? {}), thinkingConfig: { thinkingBudget: 0 } } } : body;
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b),
       });
       const j: Row = await r.json().catch(() => ({}));
       if (r.ok) return (j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("");
       last = `${model}: ${j?.error?.message ?? r.status}`;
       console.error("Gemini", last);
-      if (r.status === 400 || r.status === 401 || r.status === 403) throw new Error("Gemini kaliti: " + (j?.error?.message ?? r.status));
-      if (r.status === 404) break;                       // bunday model yo'q: keyingisiga
+      if (r.status === 401 || r.status === 403 || /api.?key/i.test(String(j?.error?.message ?? ""))) throw new Error("Gemini kaliti: " + (j?.error?.message ?? r.status));
+      if (r.status === 400 || r.status === 404) break;   // bu model mos emas: keyingisiga                       // bunday model yo'q: keyingisiga
       if (k === 0) await new Promise((ok) => setTimeout(ok, 700)); // band: bir oz kutib, qayta
     }
   }
   throw new Error("Gemini hozir band, birozdan keyin qayta urinib ko'ring");
 }
 
-/* ---------------- Gemini: matndan xarajatlar (tekin) ---------------- */
+/* ---------------- Gemini: matndan / ovozdan xarajatlar (tekin) ---------------- */
+const G_ITEMS = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      scope: { type: "STRING", enum: ["dokon", "shaxsiy"] },
+      cat: { type: "STRING", enum: ALL_CATS },
+      amount: { type: "INTEGER" },
+      firm: { type: "STRING" },
+      note: { type: "STRING" },
+      date: { type: "STRING" },
+    },
+    required: ["scope", "cat", "amount"],
+  },
+};
+// Ovoz: bitta so'rovda ham eshitadi, ham tushunadi (2 marta tezroq)
+async function geminiVoice(b64: string, mime: string): Promise<{ heard: string; items: Row[]; reply: string }> {
+  const txt = await gemini({
+    system_instruction: { parts: [{ text: SYSTEM(today()) + `\n\nSenga audio keladi. "transcript" ga aytilganini aynan o'zbek lotin yozuvida yoz (raqamlarni raqam bilan, masalan 250 ming). Audio jim bo'lsa transcript bo'sh, items bo'sh.` }] },
+    contents: [{ role: "user", parts: [{ inline_data: { mime_type: mime, data: b64 } }] }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: { type: "OBJECT", properties: { transcript: { type: "STRING" }, items: G_ITEMS, reply: { type: "STRING" } }, required: ["transcript", "items"] },
+    },
+  });
+  const out = JSON.parse(txt || "{}");
+  return { heard: String(out.transcript ?? "").trim(), items: Array.isArray(out.items) ? out.items : [], reply: String(out.reply ?? "") };
+}
+
 async function geminiParse(text: string): Promise<{ items: Row[]; reply: string }> {
   const txt = await gemini({
-      system_instruction: { parts: [{ text: SYSTEM(today()) }] },
-      contents: [{ role: "user", parts: [{ text: text.slice(0, 2000) }] }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            items: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  scope: { type: "STRING", enum: ["dokon", "shaxsiy"] },
-                  cat: { type: "STRING", enum: ALL_CATS },
-                  amount: { type: "INTEGER" },
-                  firm: { type: "STRING" },
-                  note: { type: "STRING" },
-                  date: { type: "STRING" },
-                },
-                required: ["scope", "cat", "amount"],
-              },
-            },
-            reply: { type: "STRING" },
-          },
-          required: ["items"],
-        },
-      },
-    });
+    system_instruction: { parts: [{ text: SYSTEM(today()) }] },
+    contents: [{ role: "user", parts: [{ text: text.slice(0, 2000) }] }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: { type: "OBJECT", properties: { items: G_ITEMS, reply: { type: "STRING" } }, required: ["items"] },
+    },
+  });
   const out = JSON.parse(txt || "{}");
   return { items: Array.isArray(out.items) ? out.items : [], reply: String(out.reply ?? "") };
 }
@@ -258,6 +269,20 @@ function simpleParse(text: string): { items: Row[]; reply: string } {
   return { items, reply: items.length ? "" : "Summani topmadim. Masalan: «svetga 250 ming to'ladim»" };
 }
 
+/* ---------------- ovozni qayta ishlash ---------------- */
+async function handleVoice(b64: string, mime: string, source: string): Promise<{ heard: string; saved: Row[]; reply: string }> {
+  await cfg();
+  if (GEMINI_KEY && !CLAUDE_KEY) {
+    const v = await geminiVoice(b64, mime);
+    if (!v.heard) return { heard: "", saved: [], reply: "Ovozni eshitmadim, qaytadan aniqroq ayting" };
+    const r = await saveItems(v.items.length ? v.items : simpleParse(v.heard).items, v.reply, v.heard, source);
+    return { heard: v.heard, ...r };
+  }
+  const heard = await transcribe(b64, mime);
+  if (!heard) return { heard: "", saved: [], reply: "Ovozni eshitmadim, qaytadan aniqroq ayting" };
+  return { heard, ...(await saveFromText(heard, source)) };
+}
+
 /* ---------------- saqlash va hisobot ---------------- */
 async function saveFromText(text: string, source: string) {
   let parsed: { items: Row[]; reply: string };
@@ -266,7 +291,9 @@ async function saveFromText(text: string, source: string) {
   if (ai) {
     try { parsed = await ai(text); } catch (e) { console.error(e); parsed = simpleParse(text); }
   } else parsed = simpleParse(text);
-  const { items, reply } = parsed;
+  return saveItems(parsed.items, parsed.reply, text, source);
+}
+async function saveItems(items: Row[], reply: string, text: string, source: string) {
   const rows = items.map((x) => cleanItem(x, text, source)).filter((x) => x.amount > 0);
   if (!rows.length) return { saved: [] as Row[], reply: reply || "Xarajatni tushunmadim. Masalan: «svetga 250 ming to'ladim»" };
   const { data, error } = await db.from("xr_expenses").insert(rows).select();
@@ -415,10 +442,9 @@ async function onTg(upd: Row) {
     try {
       const f = await tg("getFile", { file_id: voice.file_id });
       const audio = await fetch(`https://api.telegram.org/file/bot${TG_TOKEN}/${f.result.file_path}`).then((r) => r.arrayBuffer());
-      const heard = await transcribe(encodeBase64(new Uint8Array(audio)), voice.mime_type || "audio/ogg");
-      if (!heard) { await send(chat, "🤔 Ovozni eshitmadim. Qaytadan, aniqroq ayting."); return; }
-      const res = await saveFromText(heard, "tg_voice");
-      await send(chat, `🎤 <i>«${esc(heard)}»</i>\n\n` + (res.saved.length ? savedText(res.saved) : "🤔 " + esc(res.reply)),
+      const res = await handleVoice(encodeBase64(new Uint8Array(audio)), voice.mime_type || "audio/ogg", "tg_voice");
+      if (!res.heard) { await send(chat, "🤔 Ovozni eshitmadim. Qaytadan, aniqroq ayting."); return; }
+      await send(chat, `🎤 <i>«${esc(res.heard)}»</i>\n\n` + (res.saved.length ? savedText(res.saved) : "🤔 " + esc(res.reply)),
         res.saved.length ? itemKb(res.saved) : MAIN);
     } catch (e) {
       console.error(e);
@@ -460,10 +486,7 @@ async function onApi(req: Request) {
     case "voice": {
       const audio = String(b.audio ?? "");
       if (!audio || audio.length > 8_000_000) return json({ error: "Audio noto'g'ri" }, 400);
-      const heard = await transcribe(audio, String(b.mime ?? "audio/wav"));
-      if (!heard) return json({ heard: "", saved: [], reply: "Ovozni eshitmadim, qaytadan ayting" });
-      const r = await saveFromText(heard, "web_voice");
-      return json({ heard, saved: r.saved, reply: r.reply });
+      return json(await handleVoice(audio, String(b.mime ?? "audio/wav"), "web_voice"));
     }
     case "add": {
       const row = cleanItem(b, null, "web_form");
