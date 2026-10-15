@@ -310,25 +310,73 @@ async function rowsFrom(from: string) {
 const total = (rs: Row[]) => rs.reduce((a, r) => a + Number(r.amount), 0);
 const line = (r: Row) => `${catLabel(r.scope, r.cat)}${r.firm ? " · " + esc(r.firm) : ""} — <b>${fmt(+r.amount)}</b>${r.note ? ` <i>(${esc(r.note)})</i>` : ""}`;
 
+const MON3 = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
+const dShort = (d: string) => d === today() ? "Bugun" : d === dAgo(1) ? "Kecha" : `${+d.slice(8)}-${MON3[+d.slice(5, 7) - 1]}`;
+const hhmm = (ts: string) => new Date(Date.parse(ts) + OFF).toISOString().slice(11, 16);
+const bar = (v: number, mx: number) => { const n = Math.max(1, Math.round(v / mx * 8)); return "▰".repeat(n) + "▱".repeat(8 - n); };
+const what = (r: Row) => esc(r.firm || r.note || CATS[r.scope]?.[r.cat]?.[1] || r.cat);
+const RANGES: Record<string, string> = { today: "📅 Bugun", yday: "◀️ Kecha", week: "🗓 7 kun", month: "📊 Shu oy", prev: "⏪ O'tgan oy" };
+function rangeOf(range: string): [string, string, string] {
+  const t = today();
+  if (range === "yday") return [dAgo(1), dAgo(1), `◀️ <b>Kecha</b> · ${dateUz(dAgo(1))}`];
+  if (range === "week") return [dAgo(6), t, `🗓 <b>Oxirgi 7 kun</b> · ${dateUz(dAgo(6))} – ${dateUz(t)}`];
+  if (range === "month") { const m = MONTHS[+t.slice(5, 7) - 1]; return [monthStart(), t, `📊 <b>${m[0].toUpperCase() + m.slice(1)} oyi</b> · 1–${+t.slice(8)}`]; }
+  if (range === "prev") {
+    const d = new Date(Date.parse(monthStart() + "T00:00:00Z") - 864e5).toISOString().slice(0, 10), m = MONTHS[+d.slice(5, 7) - 1];
+    return [d.slice(0, 8) + "01", d, `⏪ <b>${m[0].toUpperCase() + m.slice(1)} oyi</b>`];
+  }
+  return [t, t, `📅 <b>Bugun</b> · ${dateUz(t)}`];
+}
+const repKb = (cur: string) => ({ inline_keyboard: [
+  Object.entries(RANGES).slice(0, 3).map(([k, l]) => ({ text: (k === cur ? "• " : "") + l, callback_data: `rep:${k}` })),
+  Object.entries(RANGES).slice(3).map(([k, l]) => ({ text: (k === cur ? "• " : "") + l, callback_data: `rep:${k}` })),
+] });
+
 async function reportText(range: string) {
-  const from = range === "today" ? today() : range === "week" ? dAgo(6) : monthStart();
-  const title = range === "today" ? `📅 <b>Bugun</b> · ${dateUz(today())}` : range === "week" ? "🗓 <b>Oxirgi 7 kun</b>" : `📊 <b>${MONTHS[+today().slice(5, 7) - 1][0].toUpperCase() + MONTHS[+today().slice(5, 7) - 1].slice(1)} oyi</b>`;
-  const rs = await rowsFrom(from);
-  if (!rs.length) return `${title}\n\nXarajat yo'q.`;
-  let t = `${title}\n\n💸 <b>Jami: ${som(total(rs))}</b>\n`;
-  for (const sc of ["dokon", "shaxsiy"]) {
-    const s = rs.filter((r) => r.scope === sc);
-    if (!s.length) continue;
-    t += `\n${SCOPE[sc]}: <b>${som(total(s))}</b>\n`;
-    const by: Record<string, number> = {};
-    s.forEach((r) => (by[r.cat] = (by[r.cat] ?? 0) + Number(r.amount)));
-    Object.entries(by).sort((a, b) => b[1] - a[1]).forEach(([c, v]) => (t += `   ${catLabel(sc, c)} — ${fmt(v)}\n`));
+  const [from, to, title] = rangeOf(range);
+  const { data } = await db.from("xr_expenses").select("*").gte("spent_on", from).lte("spent_on", to)
+    .order("spent_on", { ascending: false }).order("created_at", { ascending: false }).limit(5000);
+  const rs = data ?? [];
+  if (!rs.length) return `${title}\n\nBu davrda xarajat yo'q.`;
+  const tot = total(rs), shop = total(rs.filter((r) => r.scope === "dokon")), me = tot - shop;
+  const oneDay = from === to;
+  let t = `${title}\n\n💸 <b>Jami: ${som(tot)}</b> · ${rs.length} ta\n`;
+  if (shop && me) t += `🏪 Do'kon: <b>${fmt(shop)}</b>   👤 Shaxsiy: <b>${fmt(me)}</b>\n`;
+  else t += shop ? `🏪 Hammasi do'kon xarajati\n` : `👤 Hammasi shaxsiy xarajat\n`;
+  if (!oneDay) {
+    const days = new Set(rs.map((r) => r.spent_on)).size;
+    t += `📈 O'rtacha: <b>${fmt(tot / Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1))}</b> so'm/kun · ${days} kunda xarajat bo'lgan\n`;
   }
-  if (range === "today") {
-    t += `\n<b>Ro'yxat:</b>\n`;
-    rs.slice(0, 30).forEach((r) => (t += `• ${line(r)}\n`));
+  // turlar
+  const by: Record<string, number> = {};
+  rs.forEach((r) => { const k = r.scope + "|" + r.cat; by[k] = (by[k] ?? 0) + Number(r.amount); });
+  const cats = Object.entries(by).sort((a, b) => b[1] - a[1]), cm = cats[0][1];
+  t += `\n<b>Nimaga ketdi:</b>\n`;
+  cats.forEach(([k, v]) => { const [sc, c] = k.split("|"); t += `${catLabel(sc, c)}\n<code>${bar(v, cm)}</code> ${fmt(v)} · ${Math.round(v / tot * 100)}%\n`; });
+  if (oneDay) {
+    t += `\n<b>Qachon, nima:</b>\n`;
+    [...rs].reverse().slice(-40).forEach((r) => (t += `<code>${hhmm(r.created_at)}</code> ${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — <b>${fmt(+r.amount)}</b>${r.scope === "shaxsiy" ? " 👤" : ""}\n`));
+  } else {
+    // kunlar
+    const dd: Record<string, Row[]> = {};
+    rs.forEach((r) => (dd[r.spent_on] ||= []).push(r));
+    const dayList = Object.entries(dd);
+    t += `\n<b>Kunlar bo'yicha:</b>\n`;
+    if (range === "week") {
+      dayList.forEach(([d, items]) => {
+        t += `\n📆 <b>${dShort(d)}</b> — ${som(total(items))}\n`;
+        items.slice(0, 12).forEach((r) => (t += `   ${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — ${fmt(+r.amount)}\n`));
+        if (items.length > 12) t += `   … yana ${items.length - 12} ta\n`;
+      });
+    } else {
+      const dm = Math.max(...dayList.map(([, i]) => total(i)));
+      dayList.forEach(([d, items]) => (t += `<code>${dShort(d).padEnd(6)} ${bar(total(items), dm)}</code> ${fmt(total(items))}\n`));
+      t += `\n<b>Eng katta 5 ta xarajat:</b>\n`;
+      [...rs].sort((a, b) => b.amount - a.amount).slice(0, 5)
+        .forEach((r) => (t += `${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — <b>${fmt(+r.amount)}</b> · ${dShort(r.spent_on)}\n`));
+    }
   }
-  return t;
+  return t.length > 4000 ? t.slice(0, 3990) + "…" : t;
 }
 
 /* ---------------- Telegram ---------------- */
@@ -353,7 +401,9 @@ const itemKb = (rows: Row[]) => ({
   ]),
 });
 const savedText = (rows: Row[]) =>
-  `✅ <b>Yozildi:</b>\n` + rows.map((r) => `${SCOPE[r.scope]} · ${line(r)}${r.spent_on !== today() ? ` · ${dateUz(r.spent_on)}` : ""}`).join("\n");
+  `✅ <b>Yozildi</b> · ${rows[0]?.spent_on === today() ? "bugun " + hhmm(rows[0].created_at) : dateUz(rows[0]?.spent_on ?? today())}\n\n` +
+  rows.map((r) => `${CATS[r.scope]?.[r.cat]?.[0] ?? "🧩"} ${what(r)} — <b>${fmt(+r.amount)}</b> <i>${r.scope === "shaxsiy" ? "👤 shaxsiy" : catLabel(r.scope, r.cat).replace(/^\S+ /, "")}</i>`).join("\n") +
+  (rows.length > 1 ? `\n\n💸 Jami: <b>${som(total(rows))}</b>` : "");
 
 const HELP = `ℹ️ <b>Qanday ishlatiladi</b>
 
@@ -363,7 +413,8 @@ Xarajatni oddiy gap bilan <b>yozing</b> yoki <b>ovozli xabar</b> yuboring:
 • <i>Uyga bozorlik 185 ming, taksi 25 ming</i>
 • <i>Kecha sotuvchiga oylik 2 mln berdim</i>
 
-Men tushunib, <b>🏪 Do'kon</b> yoki <b>👤 Shaxsiy</b> xarajatga ajrataman. Xato bo'lsa, 🔁 yoki 🗑 tugmasini bosing.
+Hammasi <b>🏪 Do'kon</b>ga yoziladi. <b>👤 Shaxsiy</b> uchun «uyga», «o'zimga» yoki «shaxsiy» deng.
+Xato bo'lsa, 🔁 yoki 🗑 tugmasini bosing.
 
 📅 Bugun · 🗓 7 kun · 📊 Shu oy — hisobotlar
 🌐 Web sahifa — grafik va to'liq ro'yxat`;
@@ -406,6 +457,11 @@ async function onTg(upd: Row) {
   if (upd.callback_query) {
     const q = upd.callback_query;
     const [act, idS] = String(q.data ?? "").split(":");
+    if (act === "rep") {
+      await tg("answerCallbackQuery", { callback_query_id: q.id });
+      await tg("editMessageText", { chat_id: chat, message_id: q.message.message_id, text: await reportText(idS), parse_mode: "HTML", reply_markup: repKb(idS) });
+      return;
+    }
     const id = Number(idS);
     const { data: r } = await db.from("xr_expenses").select("*").eq("id", id).maybeSingle();
     if (!r) { await tg("answerCallbackQuery", { callback_query_id: q.id, text: "Topilmadi" }); return; }
@@ -428,14 +484,14 @@ async function onTg(upd: Row) {
   console.log("tg msg:", m.voice ? "[voice]" : text.slice(0, 80));
   const menu: Record<string, () => Promise<unknown>> = {
     "/start": () => send(chat, HELP), "ℹ️ Yordam": () => send(chat, HELP), "/yordam": () => send(chat, HELP),
-    "📅 Bugun": async () => send(chat, await reportText("today")), "/bugun": async () => send(chat, await reportText("today")),
-    "🗓 7 kun": async () => send(chat, await reportText("week")), "/hafta": async () => send(chat, await reportText("week")),
-    "📊 Shu oy": async () => send(chat, await reportText("month")), "/oy": async () => send(chat, await reportText("month")),
+    "📅 Bugun": async () => send(chat, await reportText("today"), repKb("today")), "/bugun": async () => send(chat, await reportText("today"), repKb("today")),
+    "🗓 7 kun": async () => send(chat, await reportText("week"), repKb("week")), "/hafta": async () => send(chat, await reportText("week"), repKb("week")),
+    "📊 Shu oy": async () => send(chat, await reportText("month"), repKb("month")), "/oy": async () => send(chat, await reportText("month"), repKb("month")),
     "🌐 Web sahifa": () => webLink(chat), "/web": () => webLink(chat),
     "/chiqish": async () => { await db.from("xr_sessions").delete().neq("token", ""); return send(chat, "🔒 Barcha web havolalar o'chirildi. Yangisi: /web"); },
   };
-  const cmd = text.split(/[@\s]/)[0];
-  if (menu[cmd]) { await menu[cmd](); return; }
+  const cmd = menu[text] ? text : text.startsWith("/") ? text.split(/[@\s]/)[0] : "";
+  if (cmd && menu[cmd]) { await menu[cmd](); return; }
   if (text.startsWith("/")) { await send(chat, HELP); return; }
 
   const voice = m.voice ?? m.audio;
