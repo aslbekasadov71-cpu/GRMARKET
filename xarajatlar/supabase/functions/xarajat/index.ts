@@ -787,7 +787,7 @@ async function tg(method: string, body: Row) {
   if (!j.ok && !String(j.description ?? "").includes("not modified")) console.error(method, j.description);
   return j;
 }
-const APP_V = "13"; // ilova yangilanganda Telegram eski nusxani ko'rsatmasligi uchun
+const APP_V = "14"; // ilova yangilanganda Telegram eski nusxani ko'rsatmasligi uchun
 const appUrl = () => CFG?.app_token ? `${WEB_URL}/?v=${APP_V}#t=${CFG.app_token}` : `${WEB_URL}/?v=${APP_V}`;
 const B = {
   today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot", holat: "📈 Do'kon holati", ustoz: "🧑‍🏫 Ustoz", rev: "📦 Revizya",
@@ -1039,7 +1039,15 @@ function dupText(d: Row) {
 /* --- 📈 Do'kon holati: foydami, zararmi, qayerga ketyapti --- */
 const isHealthQ = (t: string) => !/\d/.test(t) && /foyda|zarar|holat|minus|plyus|qayerga|ketyapti|daromad|yutyap|yutqaz|qanday ketyap|ahvol/i.test(t);
 const pct = (a: number, b: number) => (b ? Math.round(((a - b) / b) * 100) : null);
+// hisob yuritish boshlangan kun (birinchi yozuv): undan oldingi kunlar «savdo yozilmagan» deb sanalmaydi
+let START = "";
+async function loadStart() {
+  const { data } = await db.from("xr_expenses").select("spent_on").order("spent_on", { ascending: true }).limit(1);
+  START = data?.[0]?.spent_on ?? "";
+  return START;
+}
 function calcHealth(rows: Row[], a: string, b: string) {
+  if (START && a < START) a = START;
   const rs = rows.filter((r) => r.spent_on >= a && r.spent_on <= b);
   const S = (k: string) => total(rs.filter((r) => r.kind !== "savdo" && r.scope === k));
   const sv = total(rs.filter((r) => r.kind === "savdo")), shop = S("dokon"), me = S("shaxsiy"), kom = S("kommunal");
@@ -1055,10 +1063,11 @@ function calcHealth(rows: Row[], a: string, b: string) {
   return {
     sv, shop, me, kom, foyda: sv - shop, qoldi: sv - shop - me - kom, per, n: per.length,
     salesDays: per.filter((p) => p.s > 0).length, good: per.filter((p) => p.s > 0 && p.p >= 0).length,
-    bad: per.filter((p) => p.s > 0 && p.p < 0).length, missing: per.filter((p) => p.s === 0 && p.e > 0).length, top,
+    bad: per.filter((p) => p.s > 0 && p.p < 0).length, missing: per.filter((p) => p.s === 0 && p.d < today()).length, top,
   };
 }
 async function healthReport(range = "month") {
+  await loadStart();
   const t = today(), ms = monthStart();
   const prevStart = new Date(Date.parse(ms + "T00:00:00Z") - 864e5).toISOString().slice(0, 8) + "01";
   const [{ data }, drs] = await Promise.all([
@@ -1081,7 +1090,8 @@ async function healthReport(range = "month") {
   }
   // yo'nalish
   const ps = pct(w1.sv, w0.sv), pe = pct(w1.shop, w0.shop), pf = w1.foyda - w0.foyda;
-  if (w1.sv || w0.sv || w1.shop || w0.shop) {
+  if (!w0.n || (!w0.sv && !w0.shop)) x += `\n🧭 <b>Qayerga ketyapti?</b> — hisob yangi boshlangan, haftalik solishtirma ${w0.n ? "oldingi hafta ma'lumoti yig'ilgach" : "7 kundan keyin"} chiqadi.\n`;
+  else {
     const arrow = (v: number | null) => v === null ? "—" : v > 0 ? `⬆️ ${v}%` : v < 0 ? `⬇️ ${-v}%` : "➡️ 0%";
     x += `\n🧭 <b>Qayerga ketyapti?</b> <i>(oxirgi 7 kun)</i>\nSavdo ${arrow(ps)} · Xarajat ${arrow(pe)}\n`;
     x += pf > 0 ? "→ <b>Yaxshi tomonga</b> ketyapti 👍\n" : pf < 0 ? "→ <b>Yomon tomonga</b> ketyapti ⚠️\n" : "→ O'zgarish yo'q\n";
@@ -1097,7 +1107,7 @@ async function healthReport(range = "month") {
   if (myDebt || theirs) x += `📒 Qarzlar: menga ${short(theirs)} · mendan ${short(myDebt)}\n`;
   // maslahat
   const tips: string[] = [];
-  if (h.missing > 0 || h.salesDays < Math.ceil(h.n / 2)) tips.push(`${h.missing || h.n - h.salesDays} kun savdo yozilmagan. Har kuni kechqurun «bugungi savdo …» deb ayting — shunda foyda aniq chiqadi.`);
+  if (h.missing > 0) tips.push(`${h.missing} kun savdo yozilmagan. Har kuni kechqurun «bugungi savdo …» deb ayting — shunda foyda aniq chiqadi.`);
   if (!ok && h.top) tips.push(`Eng katta do'kon xarajati: ${CATS.dokon[h.top[0]]?.[1] ?? h.top[0]} (${short(h.top[1])}).`);
   if (ps !== null && ps <= -10) tips.push(`Savdo oldingi haftaga nisbatan ${-ps}% kamaydi.`);
   if (h.foyda > 0 && h.me + h.kom > h.foyda * 0.6) tips.push(`Shaxsiy va kommunal xarajatlar foydaning ${Math.round(((h.me + h.kom) / h.foyda) * 100)}% ini olyapti.`);
@@ -1224,6 +1234,7 @@ QOIDALAR:
 6. Soliq stavkalari, qonun moddalari va jarimalar haqida aniq raqam AYTMA — "soliq inspeksiyasi yoki litsenziyali buxgalter bilan aniqlang (my.soliq.uz)" deb yo'naltir.
 7. Format Telegram uchun: qisqa bandlar, bo'lim sarlavhalarini **qalin** qil, ro'yxat uchun "•" ishlat. Jadval, # belgisi, havola ishlatma. Javob o'zbek lotin yozuvida, sodda tilda.`;
 async function ustozContext() {
+  await loadStart();
   const t = today(), ms = monthStart();
   const [{ data }, drs, { data: rv }] = await Promise.all([
     db.from("xr_expenses").select("kind,scope,cat,amount,spent_on,note,firm").gte("spent_on", dAgo(59)).limit(10000),
@@ -1238,11 +1249,11 @@ async function ustozContext() {
   rows.filter((r) => r.spent_on >= dAgo(29) && r.firm).forEach((r) => { firms[r.firm] = (firms[r.firm] ?? 0) + Number(r.amount); });
   const ppl = debtPeople(drs).filter((p) => Math.round(p.bal) !== 0);
   const L: string[] = [];
-  L.push(`Bugun: ${t}. Oy boshidan ${m.n} kun o'tdi.`);
+  L.push(`Bugun: ${t}. Foydalanuvchi hisob yuritishni ${START || t} dan boshlagan (${m.n} kun). Undan oldingi kunlar haqida ma'lumot yo'q — ularni "yozilmagan" deb hisoblama. Bugungi savdo odatda kechqurun yoziladi.`);
   L.push(`SHU OY: savdo ${fmt(m.sv)}; do'kon xarajati ${fmt(m.shop)}; shaxsiy ${fmt(m.me)}; kommunal va soliq ${fmt(m.kom)}; savdo − do'kon xarajati = ${fmt(m.foyda)}; qo'lda qoldi ${fmt(m.qoldi)}.`);
-  L.push(`Savdo yozilgan kunlar: ${m.salesDays} / ${m.n} (yozilmagan: ${m.n - m.salesDays}).`);
-  L.push(`OXIRGI 30 KUN: savdo ${fmt(d30.sv)}, do'kon xarajati ${fmt(d30.shop)}, shaxsiy ${fmt(d30.me)}, kommunal ${fmt(d30.kom)}, savdo yozilgan kun ${d30.salesDays}/30.`);
-  L.push(`OXIRGI 7 KUN: savdo ${fmt(w1.sv)}, do'kon xarajati ${fmt(w1.shop)}. OLDINGI 7 KUN: savdo ${fmt(w0.sv)}, do'kon xarajati ${fmt(w0.shop)}.`);
+  L.push(`Savdo yozilgan kunlar: ${m.salesDays} / ${m.n} (bugundan oldingi yozilmagan kunlar: ${m.missing}).`);
+  L.push(`OXIRGI 30 KUN: savdo ${fmt(d30.sv)}, do'kon xarajati ${fmt(d30.shop)}, shaxsiy ${fmt(d30.me)}, kommunal ${fmt(d30.kom)}, savdo yozilgan kun ${d30.salesDays}/${d30.n}.`);
+  L.push(`OXIRGI 7 KUN: savdo ${fmt(w1.sv)}, do'kon xarajati ${fmt(w1.shop)}. ${w0.n ? `OLDINGI 7 KUN: savdo ${fmt(w0.sv)}, do'kon xarajati ${fmt(w0.shop)}.` : "OLDINGI 7 KUN: ma'lumot yo'q (hisob yangi boshlangan) — haftalik solishtirma qilma."}`);
   L.push(`XARAJAT TURLARI (30 kun): ` + (Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmt(v)}`).join("; ") || "yo'q"));
   if (Object.keys(firms).length) L.push(`FIRMALARGA TO'LOV (30 kun): ` + Object.entries(firms).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmt(v)}`).join("; "));
   L.push(`QARZLAR: ` + (ppl.length ? ppl.map((p) => `${p.name} — ${p.dir === "in" ? "menga qarzdor" : "men qarzdorman"} ${fmt(p.bal)}`).join("; ") : "yo'q"));

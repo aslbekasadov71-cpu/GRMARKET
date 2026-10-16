@@ -482,7 +482,10 @@ function item(r){
 }
 
 /* ---------- 📈 Do'kon holati ---------- */
+// hisob birinchi yozuvdan boshlanadi: undan oldingi kunlar sanalmaydi
+const firstDay = () => ROWS.reduce((m, r) => !m || r.spent_on < m ? r.spent_on : m, "");
 function health(a, b){
+  const f0 = firstDay(); if(f0 && a < f0) a = f0;
   const rs = ROWS.filter(r => r.spent_on >= a && r.spent_on <= b);
   const S = k => sum(rs.filter(r => !isS(r) && r.scope === k));
   const sv = sum(rs.filter(isS)), shop = S("dokon"), me = S("shaxsiy"), kom = S("kommunal"), per = [];
@@ -493,7 +496,7 @@ function health(a, b){
   const bc = {}; rs.filter(r => !isS(r) && r.scope === "dokon").forEach(r => bc[r.cat] = (bc[r.cat] || 0) + +r.amount);
   const top = Object.entries(bc).sort((x, y) => y[1] - x[1])[0];
   return {sv, shop, me, kom, foyda:sv - shop, qoldi:sv - shop - me - kom, per, n:per.length, top,
-    salesDays:per.filter(p => p.s > 0).length, good:per.filter(p => p.s > 0 && p.p >= 0).length, bad:per.filter(p => p.s > 0 && p.p < 0).length, missing:per.filter(p => p.s === 0 && p.e > 0).length};
+    salesDays:per.filter(p => p.s > 0).length, good:per.filter(p => p.s > 0 && p.p >= 0).length, bad:per.filter(p => p.s > 0 && p.p < 0).length, missing:per.filter(p => p.s === 0 && p.d < today()).length};
 }
 const pctc = (a, b) => b ? Math.round((a - b) / b * 100) : null;
 let hper = "month", HD = null, selH = null;
@@ -519,7 +522,8 @@ function drawHolat(){
   // 3) qayerga ketyapti
   const ps = pctc(w1.sv, w0.sv), pe = pctc(w1.shop, w0.shop), pf = w1.foyda - w0.foyda;
   const arr = (v, good) => v === null ? `<b style="color:var(--mute)">—</b>` : `<b style="color:${(v >= 0) === good ? "#067647" : "var(--red)"}">${ic(v >= 0 ? "arrow-right-up-bold" : "arrow-right-down-bold", 18)}${Math.abs(v)}%</b>`;
-  h += `<h2><span>Qayerga ketyapti?</span><span>oxirgi 7 kun</span></h2><div class="panel">
+  if(!w0.n || (!w0.sv && !w0.shop)) h += `<h2><span>Qayerga ketyapti?</span></h2><div class="panel"><div class="row" style="gap:10px"><div class="ico compass" style="flex:none;background:#e0f2fe;color:#0086c9">${ic("compass-bold-duotone", 26)}</div><div style="flex:1"><b>Hisob yangi boshlangan</b><small>Haftalik solishtirma 7 kundan keyin chiqadi</small></div></div></div>`;
+  else h += `<h2><span>Qayerga ketyapti?</span><span>oxirgi 7 kun</span></h2><div class="panel">
     <div class="row" style="gap:10px"><div class="ico compass" style="flex:none;background:#e0f2fe;color:#0086c9">${ic("compass-bold-duotone", 26)}</div><div style="flex:1"><b>Oldingi 7 kunga nisbatan</b><small>Savdo va do'kon xarajati qanday o'zgardi</small></div></div>
     <div class="dir"><div><small>Savdo</small>${arr(ps, true)}</div><div><small>Xarajat</small>${arr(pe, false)}</div><div><small>Foyda</small><b style="color:${pf >= 0 ? "#067647" : "var(--red)"}">${pf >= 0 ? "+" : "−"}${short(Math.abs(pf))}</b></div></div>
     <div class="verdict ${pf > 0 ? "up" : pf < 0 ? "down" : "flat"}">${ic(pf > 0 ? "like-bold-duotone" : pf < 0 ? "danger-triangle-bold-duotone" : "minus-circle-bold-duotone", 20)}${pf > 0 ? "Yaxshi tomonga ketyapti" : pf < 0 ? "Yomon tomonga ketyapti — e'tibor bering" : "O'zgarish yo'q"}</div></div>`;
@@ -528,14 +532,14 @@ function drawHolat(){
   if(HD.length > 1) h += `<h2><span>Foyda grafigi</span><span>ustunni bosing</span></h2><div class="panel hchart"><div id="hinfo"></div>${hChart(HD)}
     <div class="legend"><span><i style="background:var(--ok)"></i>Foydali kun</span><span><i style="background:var(--red)"></i>Zararli kun</span><span><i style="background:var(--b);height:3px"></i>Jami</span></div></div>`;
   // 5) kunlar va taxmin
-  if(H.salesDays) h += `<div class="pills" style="margin-bottom:10px"><div style="background:var(--okl);color:#067647">${ic("like-bold-duotone", 22)}<b>${H.good}</b><small>foydali kun</small></div><div style="background:var(--redl);color:var(--red)">${ic("dislike-bold-duotone", 22)}<b>${H.bad}</b><small>zararli kun</small></div><div style="background:#fef0c7;color:#b54708">${ic("pen-new-square-bold-duotone", 22)}<b>${H.n - H.salesDays}</b><small>savdo yozilmagan</small></div></div>`;
+  if(H.salesDays) h += `<div class="pills" style="margin-bottom:10px"><div style="background:var(--okl);color:#067647">${ic("like-bold-duotone", 22)}<b>${H.good}</b><small>foydali kun</small></div><div style="background:var(--redl);color:var(--red)">${ic("dislike-bold-duotone", 22)}<b>${H.bad}</b><small>zararli kun</small></div><div style="background:#fef0c7;color:#b54708">${ic("pen-new-square-bold-duotone", 22)}<b>${H.missing}</b><small>savdo yozilmagan</small></div></div>`;
   if(hper === "month" && H.n >= 3 && H.salesDays){
     const dim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(), proj = H.foyda / H.n * dim;
     h += `<div class="mini" style="cursor:default"><div class="ico" style="background:#f4ebff;color:#7a5af8"><span class="beat" style="display:grid">${ic("target-bold-duotone", 26)}</span></div><div class="grow"><small>Shu tezlikda oy oxirigacha</small><b style="color:${proj >= 0 ? "#067647" : "var(--red)"}">${proj >= 0 ? "~ +" : "~ −"}${fmt(Math.abs(proj))} so'm ${proj >= 0 ? "foyda" : "zarar"}</b></div></div>`;
   }
   // 6) maslahat
   const tips = [], P = people(), myDebt = P.filter(p => p.dir === "out" && p.bal > 0).reduce((s, p) => s + p.bal, 0);
-  if(H.n - H.salesDays > 0) tips.push(["pen-new-square-bold-duotone", `${H.n - H.salesDays} kun savdo yozilmagan. Har kuni kechqurun «bugungi savdo …» deb ayting — shunda foyda aniq chiqadi.`]);
+  if(H.missing > 0) tips.push(["pen-new-square-bold-duotone", `${H.missing} kun savdo yozilmagan. Har kuni kechqurun «bugungi savdo …» deb ayting — shunda foyda aniq chiqadi.`]);
   if(!ok && H.top) tips.push(["shop-bold-duotone", `Eng katta do'kon xarajati: ${cat("dokon", H.top[0])[1]} — ${fmt(H.top[1])} so'm.`]);
   if(ps !== null && ps <= -10) tips.push(["graph-down-bold-duotone", `Savdo oldingi haftaga nisbatan ${-ps}% kamaydi.`]);
   if(H.foyda > 0 && H.me + H.kom > H.foyda * .6) tips.push(["user-rounded-bold-duotone", `Shaxsiy va kommunal xarajatlar foydaning ${Math.round((H.me + H.kom) / H.foyda * 100)}% ini olyapti.`]);
