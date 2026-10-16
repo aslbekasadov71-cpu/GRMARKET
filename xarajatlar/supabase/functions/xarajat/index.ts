@@ -4,6 +4,7 @@
 // Ixtiyoriy: CLAUDE_MODEL, GEMINI_MODEL, XR_WEB_URL
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
+import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
@@ -51,28 +52,40 @@ const som = (n: number) => `${fmt(n)} so'm`;
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /* ---------------- turlar ---------------- */
+// 3 ta bo'lim: do'kon, shaxsiy, kommunal va soliq
 const CATS: Record<string, Record<string, [string, string]>> = {
   dokon: {
-    firma: ["🚚", "Firmaga to'lov"], tovar: ["📦", "Tovar xaridi"], svet: ["⚡", "Svet"], gaz: ["🔥", "Gaz"], soliq: ["🧾", "Soliq"],
-    ijara: ["🏠", "Ijara"], oylik: ["👷", "Ish haqi"], boshqa: ["🧾", "Boshqa"],
+    tovar: ["📦", "Tovar / yuk"], firma: ["🚚", "Firmaga to'lov"], ijara: ["🏠", "Do'kon ijarasi"], oylik: ["👷", "Ish haqi"],
+    yol: ["🛻", "Yo'l / yetkazish"], remont: ["🔧", "Do'kon jihozi / remont"], boshqa: ["🏪", "Do'kon boshqa"],
   },
   shaxsiy: {
-    oziq: ["🛒", "Oziq-ovqat"], transport: ["🚕", "Transport"], uy: ["🏡", "Uy-ro'zg'or"], kommunal: ["💡", "Kommunal"],
-    aloqa: ["📱", "Telefon/internet"], kiyim: ["👕", "Kiyim"], soglik: ["💊", "Sog'liq"], talim: ["📚", "Ta'lim"],
-    dam: ["🎉", "Dam olish"], boshqa: ["🧩", "Boshqa"],
+    oila: ["👪", "Oilaga / qarindoshga"], ovqat: ["🍢", "Ovqat / kafe"], oziq: ["🛒", "Bozor / oziq-ovqat"], transport: ["🚕", "Transport / taksi"],
+    uy: ["🏡", "Uy-ro'zg'or"], aloqa: ["📱", "Telefon / internet"], kiyim: ["👕", "Kiyim"], soglik: ["💊", "Sog'liq"],
+    talim: ["📚", "Ta'lim"], dam: ["🎱", "Dam olish"], sovga: ["🎁", "Sovg'a"], boshqa: ["🧩", "Shaxsiy boshqa"],
+  },
+  kommunal: {
+    svet: ["⚡", "Svet (elektr)"], gaz: ["🔥", "Gaz"], suv: ["💧", "Suv"], soliq: ["🏛", "Soliq"], kommunal: ["🧾", "Boshqa kommunal"],
   },
 };
-const SCOPE: Record<string, string> = { dokon: "🏪 Do'kon", shaxsiy: "👤 Shaxsiy" };
-const ALL_CATS = [...new Set([...Object.keys(CATS.dokon), ...Object.keys(CATS.shaxsiy), "savdo", "qarz"])];
+const SCOPES = ["dokon", "shaxsiy", "kommunal"];
+const SCOPE: Record<string, string> = { dokon: "🏪 Do'kon", shaxsiy: "👤 Shaxsiy", kommunal: "🧾 Kommunal va soliq" };
+const SCOPE_S: Record<string, string> = { dokon: "🏪 Do'kon", shaxsiy: "👤 Shaxsiy", kommunal: "🧾 Kommunal" };
+const ALL_CATS = [...new Set([...SCOPES.flatMap((s) => Object.keys(CATS[s])), "savdo", "qarz"])];
 const catLabel = (scope: string, cat: string) => { if (cat === "savdo") return "💰 Savdo"; const c = CATS[scope]?.[cat]; return c ? `${c[0]} ${c[1]}` : `🧩 ${cat}`; };
-// Do'kon <-> shaxsiy almashtirganda turini moslash
-const SWAP: Record<string, string> = { svet: "kommunal", gaz: "kommunal", soliq: "boshqa", ijara: "uy", oylik: "boshqa", firma: "boshqa", tovar: "uy", kommunal: "svet", uy: "boshqa", oziq: "tovar" };
-const swapCat = (to: string, cat: string) => (CATS[to][cat] ? cat : CATS[to][SWAP[cat]] ? SWAP[cat] : "boshqa");
+// Bo'lim almashtirganda turini moslash
+const SWAP: Record<string, string> = { ijara: "uy", oylik: "boshqa", firma: "boshqa", tovar: "uy", uy: "boshqa", oziq: "tovar", yol: "transport", transport: "yol", remont: "uy" };
+const DEF_CAT: Record<string, string> = { dokon: "boshqa", shaxsiy: "boshqa", kommunal: "kommunal" };
+const swapCat = (to: string, cat: string) => (CATS[to][cat] ? cat : CATS[to][SWAP[cat]] ? SWAP[cat] : DEF_CAT[to]);
+// Turdan bo'limni topish (AI scope'ni noto'g'ri bersa ham)
+const scopeOfCat = (cat: string) => SCOPES.filter((s) => CATS[s][cat]);
 
 function cleanItem(x: Row, raw: string | null, source: string) {
   const kind = x.kind === "savdo" || x.cat === "savdo" ? "savdo" : "xarajat";
-  const scope = kind === "savdo" ? "dokon" : x.scope === "shaxsiy" ? "shaxsiy" : "dokon";
-  const cat = kind === "savdo" ? "savdo" : CATS[scope][x.cat] ? x.cat : "boshqa";
+  let scope = kind === "savdo" ? "dokon" : SCOPES.includes(x.scope) ? x.scope : "dokon";
+  // svet/gaz/suv/soliq har doim kommunal bo'limga
+  if (kind === "xarajat" && ["svet", "gaz", "suv", "soliq"].includes(x.cat)) scope = "kommunal";
+  else if (kind === "xarajat" && !CATS[scope][x.cat] && scopeOfCat(x.cat).length === 1) scope = scopeOfCat(x.cat)[0];
+  const cat = kind === "savdo" ? "savdo" : CATS[scope][x.cat] ? x.cat : DEF_CAT[scope];
   const amount = Math.round(Number(String(x.amount ?? "").replace(/[^\d.]/g, "")) || 0);
   let date = typeof x.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : today();
   if (date > today() || date < dAgo(400)) date = today();
@@ -131,23 +144,33 @@ kind — avval aniqla:
 - "savdo" — do'kon savdosi/tushumi, kassaga kelgan pul: "savdo", "bugungi savdo", "kassa", "tushum", "sotdim", "savdo qildim", "kirim". Bunda scope="dokon", cat="savdo".
 - "xarajat" — qolgan hammasi (pul chiqib ketgan).
 
-scope (faqat xarajat uchun) — JUDA MUHIM QOIDA:
-- Sukut bo'yicha har doim "dokon".
-- Faqat foydalanuvchi o'sha xarajat haqida ANIQ aytsa "shaxsiy" qil: "uyga", "uy uchun", "uyimga", "o'zimga", "o'zim uchun", "shaxsiy", "oilaga", "oilam uchun".
-- Bu so'zlar bo'lmasa — o'zingdan taxmin qilma, hatto taksi, ovqat, dadam/opam uchun bo'lsa ham "dokon" yoz.
-- Bitta gapda bir nechta xarajat bo'lsa, har biri uchun alohida qaror qil (shaxsiy so'z faqat o'zi tegishli xarajatga ta'sir qiladi).
+scope (faqat xarajat uchun) — 3 ta bo'lim, MA'NOSIGA qarab ajrat:
+1) "kommunal" — kommunal to'lovlar va soliq: svet / elektr energiya, gaz, suv, chiqindi, issiqlik, kommunal to'lov, soliq / nalog.
+   Uyniki yoki do'konniki bo'lishidan qat'i nazar — doim "kommunal".
+2) "dokon" — do'kon uchun: sotish uchun tovar/yuk/mahsulot olish (sigaret, qop, paket, ichimlik, non, qaymoq va h.k.),
+   firma/optomchiga to'lov, do'kon ijarasi, sotuvchi oyligi, do'konga yuk tashish/yetkazish, do'kon jihozi/remonti.
+   "do'konga", "do'kon uchun", "yuk", "tovar", "zakaz" so'zlari bo'lsa — "dokon".
+3) "shaxsiy" — o'zim va oilam uchun: oila a'zolari/qarindoshlarga berilgan pul yoki narsa (dadam, oyim, onam, opam, akam, ukam,
+   singlim, jiyan, xotinim, bolalarim...), o'zim yegan ovqat (shashlik, osh, kafe, choyxona, fast-fud), shaxsiy xaridlar, kiyim,
+   dori, taksi, telefon/internet to'lovi, dam olish (bilyard, kino), sovg'alar, "uyga", "o'zimga", "shaxsiy".
+- Noaniq bo'lsa (nima uchunligi aytilmagan) — "dokon".
+- Bitta gapda bir nechta xarajat bo'lsa, har biri uchun alohida qaror qil.
 
-cat (scope ga mos; savdo bo'lsa "savdo"):
-- dokon: firma, tovar, svet, gaz, soliq, ijara, oylik, boshqa
-  · firma — firma/optomchi nomi aytilgan to'lov (nomini "firm" ga yoz)
-  · tovar — sotish uchun mahsulot/tovar olish, firma nomi aytilmagan (sigaret, qop, paket, ichimlik, non, shirinlik va h.k.)
-  · boshqa — do'konga tegishli qolgan hammasi (taksi, ovqat, odamga berilgan pul va h.k.)
-- shaxsiy: oziq, transport, uy, kommunal, aloqa, kiyim, soglik, talim, dam, boshqa
-Firmaga to'lovda firma nomini "firm" ga yoz (bosh harf bilan, lotin yozuvida).
+cat — bo'limga mos turni tanla, "boshqa"ni faqat hech biri to'g'ri kelmasa ishlat (savdo bo'lsa "savdo"):
+- dokon: tovar, firma, ijara, oylik, yol, remont, boshqa
+  · firma — firma/optomchi nomi aytilgan to'lov (nomini "firm" ga yoz, bosh harf bilan, lotin yozuvida)
+  · tovar — sotish uchun mahsulot/yuk olish, firma nomi aytilmagan
+  · yol — do'konning yuki uchun taksi/mashina/yetkazish
+- shaxsiy: oila, ovqat, oziq, transport, uy, aloqa, kiyim, soglik, talim, dam, sovga, boshqa
+  · oila — oila a'zosi/qarindoshga pul yoki narsa ("dadamga pul berdim", "opam uchun kasha")
+  · ovqat — tayyor ovqat yeyish (shashlik, osh, kafe, choyxona); oziq — bozor, uyga oziq-ovqat xaridi
+  · sovga — podarka/sovg'a; dam — bilyard, kino, sayohat, to'y
+- kommunal: svet, gaz, suv, soliq, kommunal (chiqindi, issiqlik va boshqalar)
 
 amount: so'mda butun son. "ellik ming"=50000, "yuz yigirma besh ming"=125000, "bir yarim million"/"1.5 mln"=1500000, "yarim million"=500000, "85 ming"=85000, "3 mln"=3000000, "o'n ming besh yuz"=10500, "250k"=250000.
 date: YYYY-MM-DD. "kecha" = bir kun oldin, "o'tgan kuni"/"kechagi kundan oldin" = ikki kun oldin; aytilmasa bugun.
-note: qisqa izoh (masalan "non va sut", "Malika uchun dori"), bo'lmasa bo'sh.
+note: 1-4 so'zli tushunarli nom, foydalanuvchi so'zlari bilan, bosh harf bilan: "Dadamga pul", "Shashlik", "Opam uchun kasha",
+  "Jiyanlarga sovg'a", "Sigaret", "Yuk tashish", "Elektr energiya". Har bir xarajatga albatta yoz.
 
 Agar matnda xarajat bo'lmasa yoki summa aytilmagan bo'lsa — items bo'sh ro'yxat va "reply" ga qisqa o'zbekcha izoh yoz (nima yetishmayotganini so'ra). Hech narsani to'qib chiqarma.${PEOPLE ? `\n\nQarz daftaridagi mavjud ismlar: ${PEOPLE}` : ""}`;
 
@@ -175,7 +198,7 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
                   person: { type: "string" },
                   dir: { type: "string", enum: ["in", "out"] },
                   dkind: { type: "string", enum: ["debt", "pay"] },
-                  scope: { type: "string", enum: ["dokon", "shaxsiy"] },
+                  scope: { type: "string", enum: SCOPES },
                   cat: { type: "string", enum: ALL_CATS },
                   amount: { type: "integer", description: "so'mda" },
                   firm: { type: "string" },
@@ -233,7 +256,7 @@ const G_ITEMS = {
       person: { type: "STRING" },
       dir: { type: "STRING", enum: ["in", "out"] },
       dkind: { type: "STRING", enum: ["debt", "pay"] },
-      scope: { type: "STRING", enum: ["dokon", "shaxsiy"] },
+      scope: { type: "STRING", enum: SCOPES },
       cat: { type: "STRING", enum: ALL_CATS },
       amount: { type: "INTEGER" },
       firm: { type: "STRING" },
@@ -288,19 +311,24 @@ async function transcribe(b64: string, mime: string): Promise<string> {
 /* ---------------- Oddiy tahlilchi (Claude kaliti bo'lmasa yoki ishlamasa) ---------------- */
 const KW: [RegExp, string, string][] = [
   [/firma|optom|ta'?minot|postavsh/i, "dokon", "firma"],
-  [/tovar|sigaret|qop|paket|ichimlik|zakaz|mahsulot|shirinlik/i, "dokon", "tovar"],
-  [/soliq|nalog/i, "dokon", "soliq"],
+  [/tovar|sigaret|qop|paket|ichimlik|zakaz|mahsulot|shirinlik|\byuk/i, "dokon", "tovar"],
+  [/soliq|nalog/i, "kommunal", "soliq"],
+  [/svet|elektr/i, "kommunal", "svet"],
+  [/\bgaz/i, "kommunal", "gaz"],
+  [/\bsuv\b|suvga/i, "kommunal", "suv"],
+  [/kommunal|chiqindi|musor|issiqlik/i, "kommunal", "kommunal"],
   [/oylik|ish ?haqi|zarplat|sotuvchi|ishchi/i, "dokon", "oylik"],
   [/ijara|arenda/i, "dokon", "ijara"],
-  [/svet|elektr/i, "dokon", "svet"],
-  [/\bgaz/i, "dokon", "gaz"],
+  [/dadam|otam|oyim|onam|opam|akam|ukam|singlim|jiyan|xotinim|bolalar|qarindosh/i, "shaxsiy", "oila"],
+  [/podarka|sovg'?a/i, "shaxsiy", "sovga"],
+  [/shashlik|\bosh\b|kafe|choyxona|lavash|burger|somsa|tushlik|ovqat/i, "shaxsiy", "ovqat"],
   [/taksi|benzin|propan|metan|avtobus|metro|yo'?lkira/i, "shaxsiy", "transport"],
-  [/bozor|non\b|go'?sht|sut\b|oziq|ovqat|meva|sabzavot|produkt|guruch|yog'/i, "shaxsiy", "oziq"],
+  [/bozor|non\b|go'?sht|sut\b|oziq|meva|sabzavot|produkt|guruch|yog'/i, "shaxsiy", "oziq"],
   [/telefon|internet|paynet|wi-?fi|mobil/i, "shaxsiy", "aloqa"],
   [/kiyim|oyoq ?kiyim|ko'?ylak|shim\b|kurtka|tufli/i, "shaxsiy", "kiyim"],
   [/dori|apteka|shifokor|doktor|kasalxona|klinika/i, "shaxsiy", "soglik"],
   [/kurs\b|maktab|bog'?cha|o'?qish|kitob|kontrakt/i, "shaxsiy", "talim"],
-  [/kafe|restoran|kino|sayohat|dam olish|to'?y/i, "shaxsiy", "dam"],
+  [/restoran|kino|sayohat|dam olish|to'?y|bilyard|futbol/i, "shaxsiy", "dam"],
   [/uy-?ro'?zg'?or|mebel|idish|remont|ta'?mir/i, "shaxsiy", "uy"],
 ];
 function parseSum(t: string): number {
@@ -324,8 +352,9 @@ function simpleParse(text: string): { items: Row[]; reply: string } {
     }
     if (/savdo|tushum|kassa|sotdim|sotuv|kirim/i.test(seg)) { items.push({ kind: "savdo", scope: "dokon", cat: "savdo", amount, note: "", date }); continue; }
     const k = KW.find(([re]) => re.test(seg));
-    const scope = /\buy(ga|imga|im|imiz)?\b|uy uchun|o'?zimga|o'?zim uchun|shaxsiy|oilaga|oilam/i.test(seg) ? "shaxsiy" : "dokon";
-    let cat = k ? k[2] : "boshqa";
+    let scope = k ? k[1] : "dokon";
+    if (scope !== "kommunal" && /\buy(ga|imga|im|imiz)?\b|uy uchun|o'?zimga|o'?zim uchun|shaxsiy|oilaga|oilam/i.test(seg)) scope = "shaxsiy";
+    let cat = k ? k[2] : DEF_CAT[scope];
     if (!CATS[scope][cat]) cat = swapCat(scope, cat);
     const fm = cat === "firma" ? seg.match(/([A-Za-z\u0400-\u04FF][\w'-]*(?:\s[A-Z][\w'-]*)?)\s+firma/i) : null;
     const note = seg.replace(/\d+(?:[.,\s]\d+)*\s*(mln|million|milion|ming|k|so'?m|sum)?/gi, "").replace(/\s+/g, " ").trim().slice(0, 60);
@@ -393,6 +422,7 @@ async function rowsFrom(from: string) {
   return data ?? [];
 }
 const total = (rs: Row[]) => rs.reduce((a, r) => a + Number(r.amount), 0);
+const scopeLine = (rs: Row[]) => SCOPES.map((s) => [s, total(rs.filter((r) => r.scope === s))] as [string, number]).filter(([, v]) => v).map(([s, v]) => `${SCOPE_S[s]} ${fmt(v)}`).join(" · ");
 const line = (r: Row) => `${catLabel(r.scope, r.cat)}${r.firm ? " · " + esc(r.firm) : ""} — <b>${fmt(+r.amount)}</b>${r.note ? ` <i>(${esc(r.note)})</i>` : ""}`;
 
 const MON3 = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
@@ -407,6 +437,7 @@ function rangeOf(range: string): [string, string, string] {
   if (range === "yday") return [dAgo(1), dAgo(1), `◀️ <b>Kecha</b> · ${dateUz(dAgo(1))}`];
   if (range === "week") return [dAgo(6), t, `🗓 <b>Oxirgi 7 kun</b> · ${dateUz(dAgo(6))} – ${dateUz(t)}`];
   if (range === "month") { const m = MONTHS[+t.slice(5, 7) - 1]; return [monthStart(), t, `📊 <b>${m[0].toUpperCase() + m.slice(1)} oyi</b> · 1–${+t.slice(8)}`]; }
+  if (range === "all") return ["2020-01-01", t, `📚 <b>Barcha yozuvlar</b>`];
   if (range === "prev") {
     const d = new Date(Date.parse(monthStart() + "T00:00:00Z") - 864e5).toISOString().slice(0, 10), m = MONTHS[+d.slice(5, 7) - 1];
     return [d.slice(0, 8) + "01", d, `⏪ <b>${m[0].toUpperCase() + m.slice(1)} oyi</b>`];
@@ -425,12 +456,12 @@ async function reportText(range: string) {
   const all = data ?? [];
   if (!all.length) return `${title}\n\nBu davrda yozuv yo'q.`;
   const rs = all.filter((r) => r.kind !== "savdo"), sales = all.filter((r) => r.kind === "savdo");
-  const tot = total(rs), sv = total(sales), shop = total(rs.filter((r) => r.scope === "dokon")), me = tot - shop;
+  const tot = total(rs), sv = total(sales);
   const oneDay = from === to;
   let t = `${title}\n\n`;
   if (sv) t += `💰 Savdo: <b>${som(sv)}</b>\n`;
   t += `💸 Xarajat: <b>${som(tot)}</b>${rs.length ? ` · ${rs.length} ta` : ""}\n`;
-  if (rs.length && shop && me) t += `     🏪 do'kon ${fmt(shop)} · 👤 shaxsiy ${fmt(me)}\n`;
+  if (scopeLine(rs)) t += `     ${scopeLine(rs)}\n`;
   if (sv) t += `${sv - tot >= 0 ? "✅" : "🔻"} <b>Qoldi: ${som(sv - tot)}</b>\n`;
   if (!oneDay) {
     const nd = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1);
@@ -445,7 +476,7 @@ async function reportText(range: string) {
   }
   if (oneDay) {
     t += `\n<b>Qachon, nima:</b>\n`;
-    [...all].reverse().slice(-40).forEach((r) => (t += `<code>${hhmm(r.created_at)}</code> ${icon(r)} ${what(r)} — <b>${r.kind === "savdo" ? "+" : ""}${fmt(+r.amount)}</b>${r.scope === "shaxsiy" ? " 👤" : ""}\n`));
+    [...all].reverse().slice(-40).forEach((r) => (t += `<code>${hhmm(r.created_at)}</code> ${icon(r)} ${what(r)} — <b>${r.kind === "savdo" ? "+" : ""}${fmt(+r.amount)}</b>${r.scope === "shaxsiy" ? " 👤" : r.scope === "kommunal" ? " 🧾" : ""}\n`));
   } else {
     const dd: Record<string, Row[]> = {};
     all.forEach((r) => (dd[r.spent_on] ||= []).push(r));
@@ -523,6 +554,221 @@ function chartFor(range: string, all: Row[], from: string, to: string, title: st
   return chartUrl(conf);
 }
 
+/* ---------------- PDF hisobot ---------------- */
+const CYR: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "j", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "x", ц: "ts", ч: "ch", ш: "sh", щ: "sh", ъ: "", ы: "i", ь: "", э: "e", ю: "yu", я: "ya", ў: "o'", қ: "q", ғ: "g'", ҳ: "h" };
+const WIN_EXTRA = "–—“”•…€";
+// PDF standart shrifti (WinAnsi) faqat lotin harflarini biladi: emoji va boshqalarni tozalaymiz
+function pdfSafe(s: unknown) {
+  let t = String(s ?? "").replace(/[ʻʼ‘’`´]/g, "'").replace(/−/g, "-");
+  t = t.replace(/[\u0400-\u04FF]/g, (c) => { const l = c.toLowerCase(), r = CYR[l] ?? ""; return c === l ? r : r.charAt(0).toUpperCase() + r.slice(1); });
+  return [...t].filter((c) => { const n = c.codePointAt(0)!; return (n >= 32 && n <= 126) || (n >= 160 && n <= 255) || WIN_EXTRA.includes(c); }).join("").replace(/\s+/g, " ").trim();
+}
+const hexC = (h: string) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
+const SN: Record<string, string> = { dokon: "Do'kon", shaxsiy: "Shaxsiy", kommunal: "Kommunal va soliq" };
+const nextDay = (d: string) => new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10);
+
+// Kunlar (yoki oylar) bo'yicha ustunli grafik
+function barUrl(all: Row[], from: string, to: string) {
+  const days: string[] = [];
+  for (let d = from; d <= to && days.length < 800; d = nextDay(d)) days.push(d);
+  const monthly = days.length > 62;
+  const key = (d: string) => monthly ? d.slice(0, 7) : d;
+  const keys = [...new Set(days.map(key))];
+  const sum = (k: string, s: boolean) => total(all.filter((r) => key(r.spent_on) === k && (r.kind === "savdo") === s));
+  const hasS = all.some((r) => r.kind === "savdo");
+  const ds: Row[] = [{ label: "Xarajat", data: keys.map((k) => sum(k, false)), backgroundColor: C_RED }];
+  if (hasS) ds.push({ label: "Savdo", data: keys.map((k) => sum(k, true)), backgroundColor: C_GREEN });
+  const conf = JSON.stringify({
+    type: "bar",
+    data: { labels: keys.map((k) => monthly ? `${MON3[+k.slice(5, 7) - 1]} ${k.slice(2, 4)}` : `${+k.slice(8)}.${k.slice(5, 7)}`), datasets: ds },
+    options: {
+      title: { display: true, text: monthly ? "Oylar bo'yicha" : "Kunlar bo'yicha", fontSize: 18, fontColor: "#101828", fontStyle: "bold" },
+      legend: { display: hasS, position: "bottom", labels: { fontSize: 13, boxWidth: 13 } },
+      plugins: { datalabels: { display: false } },
+      scales: {
+        xAxes: [{ gridLines: { display: false }, ticks: { fontColor: "#8a94a6", fontSize: 11 }, barPercentage: 0.75, categoryPercentage: 0.8 }],
+        yAxes: [{ gridLines: { color: "#eef1f5" }, ticks: { beginAtZero: true, fontColor: "#8a94a6", fontSize: 11, callback: "__K__" } }],
+      },
+    },
+  }).replace('"__K__"', KTICK);
+  return chartUrl(conf, 900, 400);
+}
+
+async function buildPdf(range: string): Promise<{ bytes: Uint8Array; name: string; title: string }> {
+  const r0 = rangeOf(range);
+  let from = r0[0];
+  const to = r0[1];
+  const title = pdfSafe(plainTitle(r0[2]));
+  const [{ data }, drs] = await Promise.all([
+    db.from("xr_expenses").select("*").gte("spent_on", from).lte("spent_on", to)
+      .order("spent_on", { ascending: true }).order("created_at", { ascending: true }).limit(5000),
+    debtRows(),
+  ]);
+  const all: Row[] = data ?? [];
+  if (range === "all" && all.length) from = all[0].spent_on;
+  const rs = all.filter((r) => r.kind !== "savdo"), sl = all.filter((r) => r.kind === "savdo");
+  const tot = total(rs), sv = total(sl);
+
+  const doc = await PDFDocument.create();
+  doc.setTitle(`Xarajatlar hisoboti - ${title}`);
+  doc.setAuthor("Xarajatlar bot");
+  const F = await doc.embedFont(StandardFonts.Helvetica), FB = await doc.embedFont(StandardFonts.HelveticaBold);
+  const W = 595.28, H = 841.89, M = 36, CW = W - 2 * M;
+  let page = doc.addPage([W, H]);
+  let y = H - M;
+  const newPage = () => { page = doc.addPage([W, H]); y = H - M; };
+  const need = (h: number) => { if (y - h < M + 24) newPage(); };
+  const tw = (s: string, size: number, bold = false) => (bold ? FB : F).widthOfTextAtSize(s, size);
+  const txt = (s: unknown, x: number, yy: number, size = 10, bold = false, color = "#101828") =>
+    page.drawText(pdfSafe(s), { x, y: yy, size, font: bold ? FB : F, color: hexC(color) });
+  const txtR = (s: unknown, xr: number, yy: number, size = 10, bold = false, color = "#101828") =>
+    txt(s, xr - tw(pdfSafe(s), size, bold), yy, size, bold, color);
+  const fit = (s: unknown, w: number, size = 10, bold = false) => {
+    let t = pdfSafe(s);
+    if (tw(t, size, bold) <= w) return t;
+    while (t.length > 1 && tw(t + "…", size, bold) > w) t = t.slice(0, -1);
+    return t + "…";
+  };
+  const box = (x: number, yTop: number, w: number, h: number, color: string, r = 8) =>
+    page.drawSvgPath(`M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - r} Q${w},${h} ${w - r},${h} H${r} Q0,${h} 0,${h - r} V${r} Q0,0 ${r},0 Z`, { x, y: yTop, color: hexC(color) });
+  const head = (t: string) => { need(60); y -= 6; txt(t, M, y - 13, 13, true); y -= 26; };
+  const tiles = (items: [string, string, string, string][]) => {
+    const gap = 10, w = (CW - gap * (items.length - 1)) / items.length, h = 54;
+    need(h + 10);
+    items.forEach(([l, v, col, bg], i) => {
+      const x = M + i * (w + gap);
+      box(x, y, w, h, bg, 10);
+      txt(fit(l, w - 24, 9), x + 12, y - 19, 9, false, "#667085");
+      txt(fit(v, w - 24, 15, true), x + 12, y - 41, 15, true, col);
+    });
+    y -= h + 12;
+  };
+  const table = (cols: { t: string; w: number; r?: boolean }[], rows: { c: string[]; col?: (string | undefined)[]; bold?: boolean; bg?: string }[]) => {
+    const rh = 18;
+    const header = () => {
+      need(rh * 2 + 4);
+      box(M, y, CW, rh, "#f2f4f7", 4);
+      let x = M + 8;
+      cols.forEach((c) => { c.r ? txtR(c.t, x + c.w - 16, y - 12.5, 8.5, true, "#667085") : txt(c.t, x, y - 12.5, 8.5, true, "#667085"); x += c.w; });
+      y -= rh + 2;
+    };
+    header();
+    for (const row of rows) {
+      if (y - rh < M + 24) { newPage(); header(); }
+      if (row.bg) box(M, y, CW, rh, row.bg, 3);
+      let x = M + 8;
+      cols.forEach((c, j) => {
+        const v = fit(row.c[j], c.w - 16, 9, row.bold), col = row.col?.[j] ?? "#101828";
+        c.r ? txtR(v, x + c.w - 16, y - 12.5, 9, row.bold, col) : txt(v, x, y - 12.5, 9, row.bold, col);
+        x += c.w;
+      });
+      page.drawLine({ start: { x: M, y: y - rh }, end: { x: M + CW, y: y - rh }, thickness: 0.5, color: hexC("#eef1f5") });
+      y -= rh;
+    }
+    y -= 12;
+  };
+  const image = async (url: string | null, maxH: number) => {
+    if (!url) return;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const png = await doc.embedPng(new Uint8Array(await r.arrayBuffer()));
+      let w = CW, h = (w * png.height) / png.width;
+      if (h > maxH) { h = maxH; w = (h * png.width) / png.height; }
+      need(h + 8);
+      page.drawImage(png, { x: M + (CW - w) / 2, y: y - h, width: w, height: h });
+      y -= h + 10;
+    } catch (e) { console.error("pdf rasm", e); }
+  };
+
+  // sarlavha
+  box(M, y, CW, 84, "#2b6cf6", 14);
+  txt("Xarajatlar hisoboti", M + 18, y - 34, 22, true, "#ffffff");
+  txt(title, M + 18, y - 57, 12, false, "#dbe6ff");
+  const now = new Date(Date.now() + OFF).toISOString();
+  txtR(`Tuzildi: ${dateUz(now.slice(0, 10))} ${now.slice(0, 4)}, ${now.slice(11, 16)}`, M + CW - 18, y - 34, 9, false, "#dbe6ff");
+  txtR(`${all.length} ta yozuv`, M + CW - 18, y - 57, 9, false, "#dbe6ff");
+  y -= 98;
+
+  if (!all.length) {
+    txt("Bu davrda yozuv yo'q.", M, y - 14, 12, false, "#667085");
+    y -= 30;
+  } else {
+    tiles([
+      ["Savdo (kirim)", som(sv), "#067647", "#dcfae6"],
+      ["Xarajat (chiqim)", som(tot), "#b42318", "#fee4e2"],
+      [sv - tot >= 0 ? "Qoldi" : "Kamomad", som(sv - tot), "#1849a9", "#e8f0ff"],
+    ]);
+    tiles(SCOPES.map((s) => {
+      const v = total(rs.filter((r) => r.scope === s));
+      return [`${SN[s]}${tot ? ` - ${Math.round((v / tot) * 100)}%` : ""}`, som(v), "#101828", "#f2f4f7"] as [string, string, string, string];
+    }));
+
+    // grafiklar
+    if (from !== to) await image(barUrl(all, from, to), 230);
+    if (rs.length) await image(chartFor("today", rs, "x", "x", "Xarajat turlari"), 250);
+
+    // turlar bo'yicha
+    if (rs.length) {
+      head("Xarajat turlari");
+      const by: Record<string, number> = {};
+      rs.forEach((r) => { const k = r.scope + "|" + r.cat; by[k] = (by[k] ?? 0) + Number(r.amount); });
+      table([{ t: "Tur", w: 200 }, { t: "Bo'lim", w: 130 }, { t: "Ulush", w: 70, r: true }, { t: "Summa", w: CW - 400, r: true }],
+        [...Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => {
+          const [s, c] = k.split("|");
+          return { c: [CATS[s]?.[c]?.[1] ?? c, SN[s] ?? s, `${Math.round((v / tot) * 100)}%`, fmt(v)] };
+        }), { c: ["Jami", "", "100%", fmt(tot)], bold: true, bg: "#f7f8fa" }]);
+    }
+
+    // kunlar bo'yicha
+    if (from !== to) {
+      head("Kunlar bo'yicha");
+      const dd: Record<string, Row[]> = {};
+      all.forEach((r) => (dd[r.spent_on] ||= []).push(r));
+      table([{ t: "Sana", w: 130 }, { t: "Savdo", w: 131, r: true }, { t: "Xarajat", w: 131, r: true }, { t: "Qoldi", w: CW - 392, r: true }],
+        [...Object.entries(dd).map(([d, items]) => {
+          const s1 = total(items.filter((r) => r.kind === "savdo")), x1 = total(items.filter((r) => r.kind !== "savdo"));
+          return { c: [`${dateUz(d)} ${d.slice(0, 4)}`, s1 ? fmt(s1) : "-", x1 ? fmt(x1) : "-", fmt(s1 - x1)], col: [undefined, "#067647", "#b42318", s1 - x1 < 0 ? "#b42318" : "#1849a9"] };
+        }), { c: ["Jami", fmt(sv), fmt(tot), fmt(sv - tot)], bold: true, bg: "#f7f8fa" }]);
+    }
+
+    // barcha yozuvlar
+    head("Barcha yozuvlar");
+    table([{ t: "Sana", w: 62 }, { t: "Vaqt", w: 40 }, { t: "Bo'lim", w: 72 }, { t: "Tur", w: 112 }, { t: "Izoh", w: 137 }, { t: "Summa", w: CW - 423, r: true }],
+      all.slice(0, 3000).map((r) => {
+        const s = r.kind === "savdo";
+        return {
+          c: [`${+r.spent_on.slice(8)}.${r.spent_on.slice(5, 7)}.${r.spent_on.slice(2, 4)}`, hhmm(r.created_at), s ? "Savdo" : SN[r.scope]?.split(" ")[0] ?? r.scope,
+            s ? "Kunlik savdo" : CATS[r.scope]?.[r.cat]?.[1] ?? r.cat, r.firm || r.note || "", `${s ? "+" : "-"}${fmt(+r.amount)}`],
+          col: [undefined, "#8a94a6", undefined, undefined, "#344054", s ? "#067647" : "#b42318"],
+        };
+      }));
+  }
+
+  // qarzlar
+  const ppl = debtPeople(drs);
+  const open = ppl.filter((p) => Math.round(p.bal) > 0).sort((a, b) => (a.dir === b.dir ? b.bal - a.bal : a.dir === "in" ? -1 : 1));
+  if (open.length) {
+    head("Qarz daftari");
+    const bi = open.filter((p) => p.dir === "in").reduce((a, p) => a + p.bal, 0), bo = open.filter((p) => p.dir === "out").reduce((a, p) => a + p.bal, 0);
+    tiles([["Menga qarzdor", som(bi), "#067647", "#dcfae6"], ["Mening qarzim", som(bo), "#b42318", "#fee4e2"]]);
+    table([{ t: "Ism", w: 190 }, { t: "Holat", w: 150 }, { t: "Oxirgi", w: 80 }, { t: "Qolgan qarz", w: CW - 420, r: true }],
+      open.map((p) => ({
+        c: [p.name, p.dir === "in" ? "Menga qarzdor" : "Men qarzdorman", dShort(new Date(Date.parse(p.last) + OFF).toISOString().slice(0, 10)), fmt(p.bal)],
+        col: [undefined, p.dir === "in" ? "#067647" : "#b42318", "#8a94a6", p.dir === "in" ? "#067647" : "#b42318"],
+      })));
+  }
+
+  // sahifa raqami
+  const pages = doc.getPages();
+  pages.forEach((p, i) => {
+    const t = pdfSafe(`Xarajatlar hisoboti · ${title} · ${i + 1}/${pages.length}`);
+    p.drawText(t, { x: M, y: 18, size: 8, font: F, color: hexC("#8a94a6") });
+  });
+  const bytes = await doc.save();
+  return { bytes, name: `hisobot_${from}_${to}.pdf`, title };
+}
+
 /* ---------------- Telegram ---------------- */
 async function tg(method: string, body: Row) {
   const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/${method}`, {
@@ -534,13 +780,13 @@ async function tg(method: string, body: Row) {
 }
 const appUrl = () => CFG?.app_token ? `${WEB_URL}/#t=${CFG.app_token}` : WEB_URL;
 const B = {
-  today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam",
+  today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot",
 };
 const mainKb = () => ({
   keyboard: [
     [{ text: B.today }, { text: B.report }],
     [{ text: B.debts }, { text: B.app, web_app: { url: appUrl() } }],
-    [{ text: B.help }],
+    [{ text: B.pdf }, { text: B.help }],
   ],
   resize_keyboard: true, is_persistent: true, input_field_placeholder: "Xarajat, savdo yoki qarzni yozing / ayting 🎤",
 });
@@ -559,9 +805,12 @@ const itemKb = (rows: Row[], debts: Row[] = []) => ({
   inline_keyboard: [
     ...rows.slice(0, 6).map((r) => r.kind === "savdo"
       ? [{ text: `🗑 Savdoni o'chirish · ${fmt(+r.amount)}`, callback_data: `del:${r.id}` }]
-      : [{ text: `🔁 ${r.scope === "dokon" ? "👤 Shaxsiyga" : "🏪 Do'konga"}`, callback_data: `sw:${r.id}` }, { text: `🗑 ${fmt(+r.amount)}`, callback_data: `del:${r.id}` }]),
+      : [...SCOPES.filter((s) => s !== r.scope).map((s) => ({ text: `→ ${SCOPE_S[s]}`, callback_data: `mv:${r.id}:${s}` })), { text: `🗑 ${short(+r.amount)}`, callback_data: `del:${r.id}` }]),
     ...debts.slice(0, 4).map((d) => [{ text: `🗑 ${esc(d.person)} · ${fmt(+d.amount)}`, callback_data: `dl:${d.id}` }, { text: "📒 Qarzlar", callback_data: `dt:${d.dir}` }]),
   ],
+});
+const catKb = (id: number, scope: string, cur: string) => ({
+  inline_keyboard: chunk(Object.entries(CATS[scope]).map(([k, [e, l]]) => ({ text: `${k === cur ? "✓ " : ""}${e} ${l}`, callback_data: `ct:${id}:${k}` })), 2),
 });
 const KL: Record<string, Record<string, string>> = { in: { debt: "nasiyaga oldi", pay: "qarzini qaytardi" }, out: { debt: "men qarz oldim", pay: "men to'ladim" } };
 async function savedText(rows: Row[], debts: Row[] = []) {
@@ -570,7 +819,7 @@ async function savedText(rows: Row[], debts: Row[] = []) {
   if (rows.length) {
     t += "\n" + rows.map((r) => r.kind === "savdo"
       ? `💰 <b>Savdo  +${fmt(+r.amount)}</b>${r.note ? `  <i>${esc(r.note)}</i>` : ""}`
-      : `${icon(r)} ${what(r)} — <b>${fmt(+r.amount)}</b>  <i>${r.scope === "shaxsiy" ? "👤 shaxsiy" : catLabel(r.scope, r.cat).replace(/^\S+ /, "")}</i>`).join("\n");
+      : `${icon(r)} ${what(r)} — <b>${fmt(+r.amount)}</b>\n     <i>${SCOPE_S[r.scope] ?? ""} · ${catLabel(r.scope, r.cat).replace(/^\S+ /, "")}</i>`).join("\n");
     const ex = rows.filter((r) => r.kind !== "savdo");
     if (ex.length > 1) t += `\n<b>💸 Jami: ${som(total(ex))}</b>`;
   }
@@ -596,12 +845,11 @@ const plainTitle = (t: string) => t.replace(/<[^>]+>/g, "").replace(/^\S+\s/, ""
 function summaryCaption(title: string, all: Row[]) {
   if (!all.length) return `${title}\n\n📭 Bu davrda yozuv yo'q.\n\n<i>Xarajat yoki savdoni yozing yoki ovozli xabar yuboring 🎤</i>`;
   const rs = all.filter((r) => r.kind !== "savdo"), sv = total(all.filter((r) => r.kind === "savdo")), tot = total(rs);
-  const shop = total(rs.filter((r) => r.scope === "dokon"));
   let t = `${title}\n\n`;
   if (sv) t += `💰 Savdo        <b>${som(sv)}</b>\n`;
   t += `💸 Xarajat      <b>${som(tot)}</b>\n`;
   if (sv) t += `${sv >= tot ? "✅" : "🔻"} Qoldi          <b>${som(sv - tot)}</b>\n`;
-  if (rs.length && shop && shop !== tot) t += `<i>🏪 do'kon ${fmt(shop)} · 👤 shaxsiy ${fmt(tot - shop)}</i>\n`;
+  if (rs.length) t += `\n<b>Bo'limlar:</b>\n` + SCOPES.map((s) => { const v = total(rs.filter((r) => r.scope === s)); return `${SCOPE[s]} — <b>${fmt(v)}</b>${v && tot ? ` · ${Math.round(v / tot * 100)}%` : ""}`; }).join("\n") + "\n";
   if (rs.length) {
     const by: Record<string, number> = {};
     rs.forEach((r) => { const k = r.scope + "|" + r.cat; by[k] = (by[k] ?? 0) + Number(r.amount); });
@@ -621,8 +869,29 @@ function fitCaption(t: string) {
 const repKb2 = (cur: string) => ({ inline_keyboard: [
   Object.entries(RANGES).slice(0, 3).map(([k, l]) => ({ text: (k === cur ? "✓ " : "") + l, callback_data: `rep:${k}` })),
   Object.entries(RANGES).slice(3).map(([k, l]) => ({ text: (k === cur ? "✓ " : "") + l, callback_data: `rep:${k}` })),
-  [{ text: "📋 Batafsil ro'yxat", callback_data: `rd:${cur}` }, { text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
+  [{ text: "📋 Batafsil ro'yxat", callback_data: `rd:${cur}` }, { text: "📄 PDF yuklab olish", callback_data: `pdf:${cur}` }],
+  [{ text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
 ] });
+
+/* --- PDF ni Telegramga fayl qilib yuborish --- */
+const PDF_R: [string, string][] = [["today", "Bugun"], ["week", "7 kun"], ["month", "Shu oy"], ["prev", "O'tgan oy"], ["all", "Hammasi"]];
+const pdfKb = (cur = "") => ({ inline_keyboard: [
+  PDF_R.slice(0, 3).map(([k, l]) => ({ text: `${k === cur ? "✓ " : "📄 "}${l}`, callback_data: `pdf:${k}` })),
+  PDF_R.slice(3).map(([k, l]) => ({ text: `${k === cur ? "✓ " : "📄 "}${l}`, callback_data: `pdf:${k}` })),
+] });
+async function sendPdf(chat: number, range: string) {
+  await tg("sendChatAction", { chat_id: chat, action: "upload_document" });
+  const { bytes, name, title } = await buildPdf(range);
+  const fd = new FormData();
+  fd.append("chat_id", String(chat));
+  fd.append("caption", `📄 <b>Hisobot</b> · ${esc(title)}\n<i>Boshqa davr uchun pastdagi tugmalarni bosing</i>`);
+  fd.append("parse_mode", "HTML");
+  fd.append("reply_markup", JSON.stringify(pdfKb(range)));
+  fd.append("document", new Blob([bytes], { type: "application/pdf" }), name);
+  const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendDocument`, { method: "POST", body: fd });
+  const j: Row = await r.json().catch(() => ({}));
+  if (!j.ok) { console.error("sendDocument", j.description); throw new Error("PDF yuborilmadi: " + (j.description ?? r.status)); }
+}
 async function sendReport(chat: number, range: string, msg?: Row, pre = "", post = "") {
   const { from, to, title, all } = await rangeRows(range);
   const caption = fitCaption(pre + summaryCaption(title, all) + post);
@@ -788,13 +1057,18 @@ Oddiy gap bilan <b>yozing</b> yoki <b>🎤 ovozli xabar</b> yuboring:
 • <i>Dilnoza opa 40 mingini qaytardi</i>
 • <i>Karim akadan 2 mln nasiyaga tovar oldim</i>
 
-Hammasi 🏪 do'konga yoziladi, shaxsiy uchun «uyga», «o'zimga» deng.
-Xato bo'lsa 🔁 yoki 🗑 tugmasini bosing.
+🗂 <b>3 ta bo'lim</b> — bot o'zi ajratadi:
+🏪 <b>Do'kon</b> — tovar, yuk, firma, ijara, oylik
+👤 <b>Shaxsiy</b> — <i>«dadamga pul berdim»</i>, <i>«shashlik yedim»</i>, kiyim, taksi
+🧾 <b>Kommunal va soliq</b> — svet, gaz, suv, soliq
+Noto'g'ri bo'limga tushsa, yozuv ostidagi «→» tugmasi bilan ko'chiring yoki 🗑 bilan o'chiring.
+
+📄 <b>PDF hisobot</b> — barcha statistika va yozuvlar bitta faylda: /pdf
 Bir xil xabar ikki marta kelsa, bot so'rab oladi — ikki marta yozilmaydi.
 
 🌙 Har kuni soat 21:00 da kun yakuni keladi (o'chirish: /kechki).
 
-📅 Bugun · 📊 Hisobot · 📒 Qarzlar · 📱 Ilova`;
+📅 Bugun · 📊 Hisobot · 📒 Qarzlar · 📄 PDF · 📱 Ilova`;
 
 async function onTg(upd: Row) {
   const c = await cfg();
@@ -826,7 +1100,7 @@ async function onTg(upd: Row) {
   // --- inline tugmalar ---
   if (upd.callback_query) {
     const q = upd.callback_query, msg = q.message;
-    const [act, arg] = String(q.data ?? "").split(":");
+    const [act, arg, arg3] = String(q.data ?? "").split(":");
     const ack = (text?: string) => tg("answerCallbackQuery", { callback_query_id: q.id, text });
     if (act === "rep") { await ack(); await sendReport(chat, arg, msg); return; }
     if (act === "no") { await ack("Yozilmadi"); await tg("deleteMessage", { chat_id: chat, message_id: msg.message_id }); return; }
@@ -841,6 +1115,12 @@ async function onTg(upd: Row) {
       return;
     }
     if (act === "rd") { await ack(); await send(chat, await reportText(arg)); return; }
+    if (act === "pdf") {
+      await ack("📄 PDF tayyorlanmoqda…");
+      try { await sendPdf(chat, PDF_R.some(([k]) => k === arg) || arg === "yday" ? arg : "month"); }
+      catch (e) { console.error(e); await send(chat, "⚠️ " + esc((e as Error).message)); }
+      return;
+    }
     if (act === "dt") {
       await ack();
       const v = await debtsView(arg);
@@ -870,12 +1150,17 @@ async function onTg(upd: Row) {
       await db.from("xr_expenses").delete().eq("id", id);
       await ack("🗑 O'chirildi");
       await send(chat, `🗑 O'chirildi: ${icon(r)} ${what(r)} — ${fmt(+r.amount)}`);
-    } else if (act === "sw" && r.kind !== "savdo") {
-      const to = r.scope === "dokon" ? "shaxsiy" : "dokon";
+    } else if ((act === "mv" || act === "sw") && r.kind !== "savdo") {
+      // boshqa bo'limga o'tkazish, keyin turini tanlash
+      const to = act === "mv" && SCOPES.includes(arg3) ? arg3 : r.scope === "dokon" ? "shaxsiy" : "dokon";
       const cat = swapCat(to, r.cat);
       await db.from("xr_expenses").update({ scope: to, cat, firm: to === "dokon" ? r.firm : null }).eq("id", id);
       await ack(`${SCOPE[to]} ga o'tkazildi`);
-      await send(chat, `🔁 ${SCOPE[to]} · ${line({ ...r, scope: to, cat })}`, itemKb([{ ...r, scope: to }]));
+      await send(chat, `🔁 <b>${SCOPE[to]}</b> ga o'tkazildi\n${line({ ...r, scope: to, cat })}\n\nTurini tanlang:`, catKb(id, to, cat));
+    } else if (act === "ct" && r.kind !== "savdo" && CATS[r.scope]?.[arg3]) {
+      await db.from("xr_expenses").update({ cat: arg3 }).eq("id", id);
+      await ack(`✅ ${CATS[r.scope][arg3][1]}`);
+      await tg("editMessageText", { chat_id: chat, message_id: msg.message_id, parse_mode: "HTML", text: `✅ ${SCOPE[r.scope]} · ${line({ ...r, cat: arg3 })}`, reply_markup: itemKb([{ ...r, cat: arg3 }]) });
     }
     return;
   }
@@ -902,6 +1187,8 @@ async function onTg(upd: Row) {
       return send(chat, off ? "🌙 Kechki hisobot <b>o'chirildi</b>. Qayta yoqish: /kechki" : "🌙 Kechki hisobot <b>yoqildi</b> — har kuni soat 21:00 da keladi.");
     },
     "/kunyakuni": () => evening(chat),
+    [B.pdf]: () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
+    "/pdf": () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/chiqish": async () => {
       await db.from("xr_sessions").delete().neq("token", "");
       await db.from("xr_config").delete().eq("key", "app_token");
@@ -975,6 +1262,11 @@ async function onApi(req: Request) {
       if (error) throw error;
       return json({ debt: data });
     }
+    case "pdf_tg": {
+      const c = await cfg();
+      await sendPdf(Number(c.owner_id), String(b.range ?? "month"));
+      return json({ ok: true });
+    }
     case "del_debt": {
       await db.from("xr_debts").delete().eq("id", Number(b.id));
       return json({ ok: true });
@@ -991,6 +1283,16 @@ Deno.serve(async (req) => {
   try {
     if (path.endsWith("/api")) return await onApi(req);
 
+    // PDF ni brauzerda yuklab olish: /pdf?t=TOKEN&range=month
+    if (path.endsWith("/pdf")) {
+      const token = url.searchParams.get("t") ?? "";
+      const { data: s } = token.length >= 20 ? await db.from("xr_sessions").select("token").eq("token", token).maybeSingle() : { data: null };
+      if (!s) return new Response("Kirish yopiq", { status: 401, headers: CORS });
+      const range = url.searchParams.get("range") ?? "month";
+      const { bytes, name } = await buildPdf(["today", "yday", "week", "month", "prev", "all"].includes(range) ? range : "month");
+      return new Response(bytes, { headers: { ...CORS, "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${name}"` } });
+    }
+
     if (path.endsWith("/setup")) {
       const c = await cfg(true);
       if (!c.setup_secret || url.searchParams.get("k") !== c.setup_secret) return new Response("forbidden", { status: 403 });
@@ -1003,6 +1305,7 @@ Deno.serve(async (req) => {
         { command: "oy", description: "Shu oy" },
         { command: "qarzlar", description: "Qarz daftari" },
         { command: "kunyakuni", description: "Kun yakuni hozir" },
+        { command: "pdf", description: "PDF hisobot yuklab olish" },
         { command: "kechki", description: "21:00 dagi hisobotni yoqish/o'chirish" },
         { command: "web", description: "Ilova" },
         { command: "yordam", description: "Qo'llanma" },

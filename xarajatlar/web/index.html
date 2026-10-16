@@ -62,7 +62,7 @@ input{font:inherit;color:inherit;width:100%;padding:14px;border:1px solid var(--
 .dtile b{display:block;font-size:17px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .dtile.in b{color:#16a34a}.dtile.out b{color:var(--red)}
 .seg{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:10px}
-.seg button{flex:1;font:inherit;font-size:14px;font-weight:700;border:0;background:none;color:var(--mute);padding:10px 4px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.seg button{flex:1;font:inherit;font-size:13.5px;font-weight:700;border:0;background:none;color:var(--mute);padding:10px 4px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .seg button.on{background:var(--b);color:#fff}.seg.out button.on{background:var(--red)}.seg.in button.on{background:var(--ok)}
 .panel{background:var(--card);border-radius:18px;padding:14px;margin-bottom:10px}
 .bars{display:flex;gap:3px;height:140px;align-items:flex-end}
@@ -71,12 +71,37 @@ input{font:inherit;color:inherit;width:100%;padding:14px;border:1px solid var(--
 .bars i{flex:1;max-width:14px;background:var(--red);border-radius:5px 5px 2px 2px;min-height:3px}
 .bars i.s{background:var(--ok)}.bars i.z{background:var(--line)}
 .bars small{font-size:10px;font-weight:700}
+.bscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;margin:0 -6px;padding:0 6px}
+.bscroll::-webkit-scrollbar{display:none}
+.bars2{display:flex;gap:4px;height:150px;align-items:stretch;min-width:100%}
+.bcol{flex:1 0 34px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;background:none;border:0;padding:6px 0 4px;border-radius:10px;cursor:pointer;scroll-snap-align:end;font:inherit;transition:background .15s}
+.bcol.on{background:var(--bl)}
+.bcol .pair{display:flex;gap:2px;align-items:flex-end;justify-content:center;width:100%;flex:1}
+.bcol i{width:11px;background:var(--red);border-radius:5px 5px 2px 2px;min-height:3px;transition:height .35s ease}
+.bcol i.s{background:var(--ok)}.bcol i.z{background:var(--line)}
+.bcol small{font-size:11px;font-weight:700;color:var(--mute);line-height:1}.bcol.on small{color:var(--b)}
+.bcol em{font-style:normal;font-size:9px;font-weight:700;color:var(--mute);line-height:1;min-height:9px}
+.binfo{display:flex;gap:6px;margin-bottom:10px}
+.binfo div{flex:1;background:var(--bg);border-radius:12px;padding:8px 10px;min-width:0}
+.binfo small{font-size:11px}.binfo b{font-size:14px;white-space:nowrap;font-variant-numeric:tabular-nums;display:block;overflow:hidden;text-overflow:ellipsis}
+.bhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:800;font-size:15px}
+.bhead small{font-weight:600}
+.stiles{display:flex;gap:8px;margin-bottom:10px}
+.stile{flex:1;background:var(--card);border:2px solid transparent;border-radius:16px;padding:10px 11px;min-width:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.stile.on{border-color:currentColor}
+.stile small{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;white-space:nowrap}
+.stile b{display:block;font-size:15px;font-weight:800;margin-top:3px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.stile .pbar{height:5px;margin-top:6px}
+.dsel{text-align:center;font-size:13px;font-weight:700;color:var(--mute);margin-top:8px;min-height:18px}
+.dsel b{color:var(--ink)}
 .legend{display:flex;gap:14px;margin-top:10px;font-size:13px;font-weight:700;color:var(--mute)}
 .legend span{display:flex;align-items:center;gap:6px}.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .donut{display:flex;align-items:center;gap:14px}
 .donut svg{flex:none}
 .donut .lg{flex:1;min-width:0}
-.donut .lg div{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;padding:3px 0}
+.donut .lg button{display:flex;align-items:center;gap:8px;font:inherit;font-size:13px;font-weight:700;padding:4px 6px;margin:0 -6px;width:calc(100% + 12px);background:none;border:0;border-radius:8px;cursor:pointer;color:inherit;text-align:left}
+.donut .lg button.on{background:var(--bg)}
+.donut circle{cursor:pointer;transition:opacity .2s,stroke-width .2s}
 .donut .lg i{width:10px;height:10px;border-radius:3px;flex:none}
 .donut .lg span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbar{height:6px;border-radius:99px;background:var(--bg);margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--b);border-radius:99px}
@@ -128,9 +153,14 @@ const API = "https://gaincffqsfpezjnxwvwc.supabase.co/functions/v1/xarajat/api";
 const ic = (n, s = 22) => `<iconify-icon icon="solar:${n}" width="${s}" height="${s}"></iconify-icon>`;
 // [ikonka, nom, rang]
 const CATS = {
-  dokon:{firma:["delivery-bold-duotone","Firmaga to'lov","#2b6cf6"],tovar:["box-bold-duotone","Tovar xaridi","#7a5af8"],svet:["bolt-bold-duotone","Svet","#f79009"],gaz:["fire-bold-duotone","Gaz","#fb6514"],soliq:["bill-list-bold-duotone","Soliq","#667085"],ijara:["home-2-bold-duotone","Ijara","#06aed4"],oylik:["users-group-rounded-bold-duotone","Ish haqi","#ee46bc"],boshqa:["widget-4-bold-duotone","Boshqa","#84a3c4"]},
-  shaxsiy:{oziq:["cart-large-2-bold-duotone","Oziq-ovqat","#12b76a"],transport:["bus-bold-duotone","Transport","#f79009"],uy:["home-smile-bold-duotone","Uy-ro'zg'or","#06aed4"],kommunal:["lightbulb-bold-duotone","Kommunal","#eaaa08"],aloqa:["smartphone-bold-duotone","Telefon/internet","#2b6cf6"],kiyim:["t-shirt-bold-duotone","Kiyim","#ee46bc"],soglik:["health-bold-duotone","Sog'liq","#f04438"],talim:["book-bold-duotone","Ta'lim","#7a5af8"],dam:["gift-bold-duotone","Dam olish","#fb6514"],boshqa:["widget-4-bold-duotone","Boshqa","#84a3c4"]}
+  dokon:{tovar:["box-bold-duotone","Tovar / yuk","#7a5af8"],firma:["delivery-bold-duotone","Firmaga to'lov","#2b6cf6"],ijara:["home-2-bold-duotone","Do'kon ijarasi","#06aed4"],oylik:["users-group-rounded-bold-duotone","Ish haqi","#ee46bc"],yol:["bus-bold-duotone","Yo'l / yetkazish","#f79009"],remont:["settings-bold-duotone","Jihoz / remont","#667085"],boshqa:["shop-bold-duotone","Do'kon boshqa","#84a3c4"]},
+  shaxsiy:{oila:["users-group-two-rounded-bold-duotone","Oilaga / qarindoshga","#ee46bc"],ovqat:["cup-hot-bold-duotone","Ovqat / kafe","#fb6514"],oziq:["cart-large-2-bold-duotone","Bozor / oziq-ovqat","#12b76a"],transport:["bus-bold-duotone","Transport / taksi","#f79009"],uy:["home-smile-bold-duotone","Uy-ro'zg'or","#06aed4"],aloqa:["smartphone-bold-duotone","Telefon / internet","#2b6cf6"],kiyim:["t-shirt-bold-duotone","Kiyim","#d444f1"],soglik:["health-bold-duotone","Sog'liq","#f04438"],talim:["book-bold-duotone","Ta'lim","#7a5af8"],dam:["gamepad-bold-duotone","Dam olish","#15b79e"],sovga:["gift-bold-duotone","Sovg'a","#e31b54"],boshqa:["widget-4-bold-duotone","Shaxsiy boshqa","#84a3c4"]},
+  kommunal:{svet:["bolt-bold-duotone","Svet (elektr)","#eaaa08"],gaz:["fire-bold-duotone","Gaz","#fb6514"],suv:["waterdrops-bold-duotone","Suv","#0ba5ec"],soliq:["bill-list-bold-duotone","Soliq","#475467"],kommunal:["buildings-2-bold-duotone","Boshqa kommunal","#b54708"]}
 };
+// bo'limlar: nom, ikonka, rang, fon
+const SC = {dokon:{n:"Do'kon",i:"shop-bold",c:"#2b6cf6",bg:"#e8f0ff"}, shaxsiy:{n:"Shaxsiy",i:"user-rounded-bold",c:"#6941c6",bg:"#f4ebff"}, kommunal:{n:"Kommunal",i:"bill-list-bold",c:"#b54708",bg:"#fef0c7"}};
+const SCOPES = ["dokon","shaxsiy","kommunal"];
+const MON3 = ["yan","fev","mar","apr","may","iyn","iyl","avg","sen","okt","noy","dek"];
 const SAVDO = ["wallet-money-bold-duotone","Kunlik savdo","#12b76a"];
 const MON = ["yanvar","fevral","mart","aprel","may","iyun","iyul","avgust","sentabr","oktabr","noyabr","dekabr"];
 const $ = s => document.querySelector(s);
@@ -222,12 +252,13 @@ function drawNav(){
 }
 function go(k){ tab = k; try{ localStorage.setItem("xr_tab", k); }catch(e){} draw(); scrollTo(0, 0); }
 
-function header(title, sub){
-  return `<div class="top"><div><small>${sub}</small><h1>${title}</h1></div>
-    <button class="pill" onclick="load().then(()=>toast('Yangilandi'))">${ic("refresh-bold", 16)} Yangilash</button></div>`;
+function header(title, sub, pdf = true){
+  return `<div class="top"><div><small>${sub}</small><h1>${title}</h1></div><div class="row" style="gap:6px;flex:none">
+    ${pdf ? `<button class="pill" onclick="openPdf()" aria-label="PDF hisobot">${ic("file-download-bold", 16)} PDF</button>` : ""}
+    <button class="pill" onclick="load().then(()=>toast('Yangilandi'))" aria-label="Yangilash">${ic("refresh-bold", 16)}</button></div></div>`;
 }
 function perChips(){ return `<div class="chips">${PER.map(([k, l]) => `<button class="chip ${per===k?"on":""}" onclick="per='${k}';draw()">${l}</button>`).join("")}</div>`; }
-function scopeSeg(){ return `<div class="seg">${[["all","Hammasi","widget-bold"],["dokon","Do'kon","shop-bold"],["shaxsiy","Shaxsiy","user-rounded-bold"]].map(([k, l, i]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';draw()">${ic(i, 18)}${l}</button>`).join("")}</div>`; }
+function scopeSeg(){ return `<div class="seg">${[["all","Hammasi","widget-bold"], ...SCOPES.map(k => [k, SC[k].n, SC[k].i])].map(([k, l, i]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';draw()">${ic(i, 16)}${l}</button>`).join("")}</div>`; }
 
 function draw(){
   if(!$("#body")) return;
@@ -240,44 +271,80 @@ function draw(){
 /* ---------- Asosiy ---------- */
 function drawHome(){
   const all = ROWS.filter(inRange), rs = all.filter(r => !isS(r)), tot = sum(rs);
-  const sv = scope === "shaxsiy" ? 0 : sum(ROWS.filter(inDates).filter(isS)), left = sv - tot;
+  const sv = scope === "all" || scope === "dokon" ? sum(ROWS.filter(inDates).filter(isS)) : 0, left = sv - tot;
   const pl = PER.find(p => p[0] === per)[1], d = new Date();
   let h = header("Xarajatlar", d.getDate() + "-" + MON[d.getMonth()] + ", " + d.getFullYear()) + perChips() + scopeSeg();
-  h += `<div class="stat"><small>${pl} · ${rs.length} ta xarajat</small><div class="big">${som(tot)}</div>
+  h += `<div class="stat"><small>${pl} · ${rs.length} ta xarajat${scope !== "all" ? " · " + SC[scope].n : ""}</small><div class="big">${som(tot)}</div>
     <div class="sp"><div><small>${ic("arrow-down-left-bold", 14)} Savdo</small><b>${fmt(sv)}</b></div><div><small>${ic(left >= 0 ? "check-circle-bold" : "danger-triangle-bold", 14)} Qoldi</small><b>${fmt(left)}</b></div></div></div>`;
+  // 3 bo'lim: bosilsa filtr
+  const allX = ROWS.filter(inDates).filter(r => !isS(r)), totX = sum(allX);
+  h += `<div class="stiles">${SCOPES.map(k => { const v = sum(allX.filter(r => r.scope === k));
+    return `<button class="stile ${scope === k ? "on" : ""}" style="color:${SC[k].c}" onclick="scope=scope==='${k}'?'all':'${k}';draw()"><small>${ic(SC[k].i, 14)}${SC[k].n}</small><b>${short(v)}</b><div class="pbar" style="background:${SC[k].bg}"><i style="width:${totX ? v / totX * 100 : 0}%;background:${SC[k].c}"></i></div></button>`; }).join("")}</div>`;
   const P = people(), inn = P.filter(p => p.dir === "in" && p.bal > 0), out = P.filter(p => p.dir === "out" && p.bal > 0);
   if(inn.length || out.length) h += `<div class="dtiles" onclick="go('debts')" style="cursor:pointer"><div class="dtile in"><small>${ic("arrow-down-left-bold", 15)} Menga qarzdor</small><b>${fmt(sum(inn.map(p => ({amount:p.bal}))))}</b></div><div class="dtile out"><small>${ic("arrow-up-right-bold", 15)} Mening qarzim</small><b>${fmt(sum(out.map(p => ({amount:p.bal}))))}</b></div></div>`;
+  // kunlik grafik: surib ko'rish, bosganda raqamlar
   if(per !== "today" && per !== "yday"){
     const [a, b] = range(), days = [];
     for(let x = new Date(a + "T00:00:00"); iso(x) <= b; x.setDate(x.getDate() + 1)) days.push(iso(x));
     const ex = {}, sl = {}; all.forEach(r => { const o = isS(r) ? sl : ex; o[r.spent_on] = (o[r.spent_on] || 0) + +r.amount; });
-    const hasS = days.some(x => sl[x]), mx = Math.max(...days.map(x => Math.max(ex[x] || 0, sl[x] || 0)), 1), step = days.length > 10 ? 5 : 1;
-    h += `<h2><span>Kunlar bo'yicha</span><span>${days.length} kun</span></h2><div class="panel"><div class="bars">${days.map((x, i) => `<div title="${dLabel(x)}: xarajat ${fmt(ex[x] || 0)}${sl[x] ? ", savdo " + fmt(sl[x]) : ""}"><div class="pair"><i class="${ex[x] ? "" : "z"}" style="height:${Math.round((ex[x] || 0) / mx * 100)}%"></i>${hasS ? `<i class="s ${sl[x] ? "" : "z"}" style="height:${Math.round((sl[x] || 0) / mx * 100)}%"></i>` : ""}</div><small style="color:${x === today() ? "var(--b)" : "var(--mute)"}">${(days.length <= 10 || i % step === 0 || i === days.length - 1) ? +x.slice(8) : "&nbsp;"}</small></div>`).join("")}</div>
-      <div class="legend"><span><i style="background:var(--red)"></i>Xarajat</span>${hasS ? `<span><i style="background:var(--ok)"></i>Savdo</span>` : ""}</div></div>`;
-  }
+    BD = {days, ex, sl};
+    if(!days.includes(selDay)) selDay = days.includes(today()) ? today() : days[days.length - 1];
+    h += `<h2><span>Kunlar bo'yicha</span><span>${days.length > 8 ? "← surib ko'ring →" : days.length + " kun"}</span></h2><div class="panel"><div id="binfo"></div>${barsHtml()}
+      <div class="legend"><span><i style="background:var(--red)"></i>Xarajat</span>${days.some(x => sl[x]) ? `<span><i style="background:var(--ok)"></i>Savdo</span>` : ""}<span style="margin-left:auto">Kunni bosing</span></div></div>`;
+  } else BD = null;
+  // turlar: doira (bosiladi) + ro'yxat
   const bc = {}; rs.forEach(r => { const k = r.scope + "|" + r.cat; bc[k] = (bc[k] || 0) + +r.amount; });
   const cs = Object.entries(bc).sort((a, b) => b[1] - a[1]);
+  DS = {cs, tot}; if(selCat != null && selCat >= cs.length) selCat = null;
   if(cs.length){
-    h += `<h2><span>Nimaga ketdi</span><span>${cs.length} tur</span></h2><div class="panel donut">${donut(cs.map(([k, v]) => [v, cat(...k.split("|"))[2]]), tot)}
-      <div class="lg">${cs.slice(0, 6).map(([k, v]) => { const x = cat(...k.split("|")); return `<div><i style="background:${x[2]}"></i><span>${esc(x[1])}</span><b>${Math.round(v / tot * 100)}%</b></div>`; }).join("")}</div></div>`;
+    h += `<h2><span>Nimaga ketdi</span><span>${cs.length} tur</span></h2><div class="panel" id="dpanel"></div>`;
     h += cs.map(([k, v]) => { const [s, c] = k.split("|"), x = cat(s, c);
-      return `<button class="card" onclick="go('list')"><div class="ico" style="background:${tint(x[2])};color:${x[2]}">${ic(x[0], 24)}</div><div class="grow"><b>${esc(x[1])}</b><small>${s === "dokon" ? "Do'kon" : "Shaxsiy"} · ${Math.round(v / tot * 100)}%</small><div class="pbar"><i style="width:${v / cs[0][1] * 100}%;background:${x[2]}"></i></div></div><div class="right">${fmt(v)}</div></button>`; }).join("");
+      return `<button class="card" onclick="go('list')"><div class="ico" style="background:${tint(x[2])};color:${x[2]}">${ic(x[0], 24)}</div><div class="grow"><b>${esc(x[1])}</b><small>${SC[s]?.n ?? s} · ${Math.round(v / tot * 100)}%</small><div class="pbar"><i style="width:${v / cs[0][1] * 100}%;background:${x[2]}"></i></div></div><div class="right">${fmt(v)}</div></button>`; }).join("");
   }
   const last = all.slice(0, 5);
   h += `<h2><span>Oxirgi yozuvlar</span>${all.length > 5 ? `<button class="link" style="width:auto;padding:0" onclick="go('list')">Hammasi →</button>` : ""}</h2>`;
   h += last.length ? last.map(item).join("") : `<div class="empty">${ic("bill-list-bold-duotone", 48)}<br>Bu davrda yozuv yo'q<br><small>Pastda yozing yoki mikrofonni bosing</small></div>`;
   $("#body").innerHTML = h;
+  if(BD){ dayInfo(); const sc = $("#bscroll"), on = sc?.querySelector(".bcol.on"); if(sc && on) sc.scrollLeft = on.offsetLeft - sc.clientWidth + on.offsetWidth + 12; }
+  if(cs.length) drawDonut();
 }
-function donut(parts, tot){
-  const R = 52, C = 2 * Math.PI * R; let off = 0;
-  const segs = parts.map(([v, c]) => { const len = v / tot * C, s = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${c}" stroke-width="20" stroke-dasharray="${Math.max(len - (parts.length > 1 ? 2 : 0), .5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`; off += len; return s; }).join("");
-  return `<svg width="140" height="140" viewBox="0 0 140 140"><circle r="${R}" cx="70" cy="70" fill="none" stroke="#f2f4f7" stroke-width="20"/>${segs}
-    <text x="70" y="70" text-anchor="middle" font-size="18" font-weight="800" fill="#101828" font-family="Manrope,sans-serif">${short(tot)}</text><text x="70" y="88" text-anchor="middle" font-size="11" font-weight="600" fill="#8a94a6" font-family="Manrope,sans-serif">so'm</text></svg>`;
+let BD = null, DS = null, selDay = null, selCat = null;
+function barsHtml(){
+  const {days, ex, sl} = BD, hasS = days.some(x => sl[x]), mx = Math.max(...days.map(x => Math.max(ex[x] || 0, sl[x] || 0)), 1);
+  return `<div class="bscroll" id="bscroll"><div class="bars2">${days.map((x, i) => `<button class="bcol ${x === selDay ? "on" : ""}" data-d="${x}" onclick="pickDay('${x}')">
+    <div class="pair"><i class="${ex[x] ? "" : "z"}" style="height:${Math.round((ex[x] || 0) / mx * 100)}%"></i>${hasS ? `<i class="s ${sl[x] ? "" : "z"}" style="height:${Math.round((sl[x] || 0) / mx * 100)}%"></i>` : ""}</div>
+    <small style="${x === today() ? "color:var(--b)" : ""}">${+x.slice(8)}</small><em>${i === 0 || x.slice(8) === "01" ? MON3[+x.slice(5, 7) - 1] : ""}</em></button>`).join("")}</div></div>`;
 }
+function dayInfo(){
+  if(!BD || !$("#binfo")) return;
+  const x = selDay, e = BD.ex[x] || 0, s = BD.sl[x] || 0;
+  $("#binfo").innerHTML = `<div class="bhead"><span>${dLabel(x)}${x !== today() && x !== dAgo(1) ? " " + x.slice(0, 4) : ""}</span><small>${ROWS.filter(r => r.spent_on === x && inRange(r)).length} ta yozuv</small></div>
+    <div class="binfo"><div><small>Savdo</small><b class="green">${s ? "+" + fmt(s) : "—"}</b></div><div><small>Xarajat</small><b class="redt">${e ? "−" + fmt(e) : "—"}</b></div><div><small>Qoldi</small><b style="color:${s - e < 0 ? "var(--red)" : "var(--b)"}">${s || e ? fmt(s - e) : "—"}</b></div></div>`;
+}
+function pickDay(x){
+  selDay = x;
+  document.querySelectorAll(".bcol").forEach(b => b.classList.toggle("on", b.dataset.d === x));
+  dayInfo();
+  try{ tgw?.HapticFeedback?.selectionChanged(); }catch(e){}
+}
+function drawDonut(){
+  const {cs, tot} = DS, el = $("#dpanel"); if(!el) return;
+  const R = 56, C = 2 * Math.PI * R; let off = 0;
+  const segs = cs.map(([k, v], i) => { const x = cat(...k.split("|")), len = v / tot * C, on = selCat === i;
+    const c = `<circle r="${R}" cx="80" cy="80" fill="none" stroke="${x[2]}" stroke-width="${on ? 28 : 22}" opacity="${selCat == null || on ? 1 : .28}" stroke-dasharray="${Math.max(len - (cs.length > 1 ? 2 : 0), .5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)" onclick="pickCat(${i})"/>`;
+    off += len; return c; }).join("");
+  const sel = selCat != null ? cs[selCat] : null, sx = sel ? cat(...sel[0].split("|")) : null;
+  const big = sel ? short(sel[1]) : short(tot), sub = sel ? Math.round(sel[1] / tot * 100) + "%" : "so'm · jami";
+  el.innerHTML = `<div class="donut"><svg width="160" height="160" viewBox="0 0 160 160"><circle r="${R}" cx="80" cy="80" fill="none" stroke="#f2f4f7" stroke-width="22" onclick="pickCat(null)"/>${segs}
+    <text x="80" y="80" text-anchor="middle" font-size="19" font-weight="800" fill="${sel ? sx[2] : "#101828"}" font-family="Manrope,sans-serif" onclick="pickCat(null)">${big}</text><text x="80" y="98" text-anchor="middle" font-size="11" font-weight="600" fill="#8a94a6" font-family="Manrope,sans-serif">${sub}</text></svg>
+    <div class="lg">${cs.slice(0, 7).map(([k, v], i) => { const x = cat(...k.split("|")); return `<button class="${selCat === i ? "on" : ""}" onclick="pickCat(${i})"><i style="background:${x[2]}"></i><span>${esc(x[1])}</span><b>${Math.round(v / tot * 100)}%</b></button>`; }).join("")}</div></div>
+    <div class="dsel">${sel ? `${esc(sx[1])}: <b>${som(sel[1])}</b> · ${SC[sel[0].split("|")[0]]?.n ?? ""}` : "Bo'lakni bosing — summasi ko'rinadi"}</div>`;
+}
+function pickCat(i){ selCat = i == null || selCat === i ? null : i; drawDonut(); try{ tgw?.HapticFeedback?.selectionChanged(); }catch(e){} }
 function item(r){
   const x = cat(r.scope, r.cat), s = isS(r), t = r.firm || r.note;
   return `<button class="card" onclick="openForm(${r.id})"><div class="ico" style="background:${tint(x[2])};color:${x[2]}">${ic(x[0], 24)}</div>
-    <div class="grow"><b>${esc(t || x[1])}</b><small>${s ? `<span class="tag" style="background:var(--okl);color:#067647">Savdo</span>` : r.scope === "shaxsiy" ? `<span class="tag" style="background:#f4ebff;color:#6941c6">Shaxsiy</span>` : ""}${t ? esc(x[1]) + " · " : ""}${r.spent_on !== today() && tab === "home" && per !== "today" ? dLabel(r.spent_on) + " " : ""}${hhmm(r.created_at)}${r.source?.includes("voice") ? " · 🎤" : ""}</small></div>
+    <div class="grow"><b>${esc(t || x[1])}</b><small>${s ? `<span class="tag" style="background:var(--okl);color:#067647">Savdo</span>` : SC[r.scope] ? `<span class="tag" style="background:${SC[r.scope].bg};color:${SC[r.scope].c}">${SC[r.scope].n}</span>` : ""}${t ? esc(x[1]) + " · " : ""}${r.spent_on !== today() && tab === "home" && per !== "today" ? dLabel(r.spent_on) + " " : ""}${hhmm(r.created_at)}${r.source?.includes("voice") ? " · 🎤" : ""}</small></div>
     <div class="right ${s ? "green" : ""}">${s ? "+" : "−"}${fmt(r.amount)}</div></button>`;
 }
 
@@ -372,6 +439,35 @@ async function saveDebt(){
   }catch(e){ $("#dsave").disabled = false; toast(esc(e.message), "danger-triangle-bold"); }
 }
 
+/* ---------- PDF hisobot ---------- */
+const PDF_P = [["today","Bugun"],["week","7 kun"],["month","Shu oy"],["prev","O'tgan oy"],["all","Hammasi"]];
+let pdfPer = "month";
+const inTg = () => !!tgw?.initData;
+function openPdf(){
+  pdfPer = PDF_P.some(p => p[0] === per) ? per : per === "yday" ? "today" : "month";
+  drawPdf();
+}
+function drawPdf(){
+  modal(`<div class="mh"><div><h1 style="font-size:22px">PDF hisobot</h1><small>Grafiklar, bo'limlar, barcha yozuvlar va qarzlar</small></div><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
+  <div class="panel" style="display:flex;gap:12px;align-items:center"><div class="ico" style="width:52px;height:52px;background:var(--redl);color:var(--red)">${ic("file-text-bold-duotone", 30)}</div>
+    <div><b>Qaysi davr uchun?</b><small>Tanlang va yuklab oling</small></div></div>
+  <div class="chips wrap">${PDF_P.map(([k, l]) => `<button class="chip ${pdfPer===k?"on":""}" onclick="pdfPer='${k}';drawPdf()">${l}</button>`).join("")}</div>
+  ${inTg() ? `<button class="btn b full" id="pdfTg" style="margin-bottom:8px" onclick="pdfToTg()">${ic("plain-2-bold", 20)} Telegram chatga yuborish</button>` : ""}
+  <button class="btn ${inTg() ? "" : "b"} full" onclick="pdfDownload()">${ic("download-minimalistic-bold", 20)} Yuklab olish</button>`);
+}
+const pdfUrl = () => API.replace(/\/api$/, "/pdf") + `?t=${encodeURIComponent(T)}&range=${pdfPer}`;
+async function pdfToTg(){
+  const b = $("#pdfTg"); b.disabled = true; b.innerHTML = `<span class="spin"></span> Tayyorlanmoqda...`;
+  try{ await api("pdf_tg", {range:pdfPer}); closeModal(); toast("PDF bot chatiga yuborildi"); setTimeout(() => { try{ tgw.close(); }catch(e){} }, 900); }
+  catch(e){ b.disabled = false; b.innerHTML = `${ic("plain-2-bold", 20)} Telegram chatga yuborish`; toast(esc(e.message), "danger-triangle-bold"); }
+}
+function pdfDownload(){
+  const u = pdfUrl();
+  if(inTg()){ try{ if(tgw.downloadFile) return tgw.downloadFile({url:u, file_name:`hisobot_${pdfPer}.pdf`}); }catch(e){} try{ return tgw.openLink(u); }catch(e){} }
+  const a = document.createElement("a"); a.href = u; a.download = `hisobot_${pdfPer}.pdf`; document.body.appendChild(a); a.click(); a.remove();
+  toast("PDF yuklanmoqda...");
+}
+
 /* ---------- modal ---------- */
 function modal(html){
   let m = $("#modal");
@@ -446,15 +542,15 @@ async function onRecStop(){
 function openForm(id){
   const r = id ? ROWS.find(x => x.id === id) : null;
   edit = r ? {id:r.id, kind:r.kind || "xarajat", scope:r.scope, cat:r.cat, amount:r.amount, firm:r.firm || "", note:r.note || "", date:r.spent_on}
-           : {id:null, kind:"xarajat", scope:scope === "shaxsiy" ? "shaxsiy" : "dokon", cat:scope === "shaxsiy" ? "oziq" : "tovar", amount:"", firm:"", note:"", date:today()};
+           : {id:null, kind:"xarajat", scope:SCOPES.includes(scope) ? scope : "dokon", cat:Object.keys(CATS[SCOPES.includes(scope) ? scope : "dokon"])[0], amount:"", firm:"", note:"", date:today()};
   drawForm();
 }
 function drawForm(){
   const e = edit, firms = [...new Set(ROWS.map(r => r.firm).filter(Boolean))];
   modal(`<div class="mh"><h1 style="font-size:22px">${e.id ? "Tahrirlash" : "Yangi yozuv"}</h1><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
   <div class="seg ${e.kind === "savdo" ? "in" : "out"}">${[["xarajat","Xarajat","arrow-up-right-bold"],["savdo","Savdo","arrow-down-left-bold"]].map(([k, l, i]) => `<button class="${e.kind===k?"on":""}" onclick="edit.kind='${k}';drawForm()">${ic(i, 18)}${l}</button>`).join("")}</div>
-  ${e.kind === "savdo" ? "" : `<div class="seg">${[["dokon","Do'kon","shop-bold"],["shaxsiy","Shaxsiy","user-rounded-bold"]].map(([k, l, i]) => `<button class="${e.scope===k?"on":""}" onclick="edit.scope='${k}';if(!CATS['${k}'][edit.cat])edit.cat='boshqa';drawForm()">${ic(i, 18)}${l}</button>`).join("")}</div>
-  <div class="chips wrap">${Object.entries(CATS[e.scope]).map(([k, [i, l, c]]) => `<button class="chip ${e.cat===k?"on":""}" onclick="edit.cat='${k}';drawForm()"><span style="color:${c};display:grid">${ic(i, 18)}</span>${l}</button>`).join("")}</div>`}
+  ${e.kind === "savdo" ? "" : `<div class="seg">${SCOPES.map(k => `<button class="${e.scope===k?"on":""}" onclick="edit.scope='${k}';if(!CATS['${k}'][edit.cat])edit.cat=Object.keys(CATS['${k}'])[0];drawForm()">${ic(SC[k].i, 16)}${SC[k].n}</button>`).join("")}</div>
+  <div class="chips wrap">${Object.entries(CATS[e.scope] || CATS.dokon).map(([k, [i, l, c]]) => `<button class="chip ${e.cat===k?"on":""}" onclick="edit.cat='${k}';drawForm()"><span style="color:${c};display:grid">${ic(i, 18)}</span>${l}</button>`).join("")}</div>`}
   ${e.kind !== "savdo" && e.scope === "dokon" && e.cat === "firma" ? `<label class="field">${ic("delivery-bold-duotone", 22)}<input list="fl" placeholder="Firma nomi" value="${esc(e.firm)}" oninput="edit.firm=this.value" autocomplete="off"></label><datalist id="fl">${firms.map(f => `<option value="${esc(f)}">`).join("")}</datalist>` : ""}
   <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="ea" placeholder="Summa" value="${e.amount ? fmt(e.amount) : ""}" oninput="edit.amount=digits(this.value);this.value=edit.amount?fmt(edit.amount):''"></label>
   <label class="field">${ic("calendar-bold-duotone", 22)}<input type="date" value="${e.date}" max="${today()}" onchange="edit.date=this.value||today()"></label>
