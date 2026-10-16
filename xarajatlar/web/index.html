@@ -126,6 +126,10 @@ nav button.on{color:var(--b)}
 .modal{position:fixed;inset:0;background:rgba(16,24,40,.5);display:flex;align-items:flex-end;z-index:9}
 .modal>div{background:var(--bg);width:100%;max-width:560px;margin:0 auto;border-radius:26px 26px 0 0;padding:20px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto;animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
+.modal .act{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom));margin:6px -16px 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 82%,transparent);z-index:2}
+.ask{position:fixed;inset:0;z-index:30;background:rgba(16,24,40,.5);display:grid;place-items:center;padding:24px}
+.ask>div{background:#fff;border-radius:22px;padding:22px 18px 16px;width:100%;max-width:340px;text-align:center;animation:up .18s ease-out}
+.ask b{display:block;font-size:17px;margin:8px 0 16px}.ask .row{gap:10px}
 .mh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .x{background:var(--card);border:0;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--mute);flex:none}
 #toast{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-weight:700;padding:10px 16px;border-radius:99px;z-index:20;display:none;align-items:center;gap:6px;max-width:92%;font-size:14px}
@@ -595,7 +599,7 @@ function openRev(){
   <label class="field">${ic("box-bold-duotone", 22)}<input inputmode="numeric" id="rvs" placeholder="Tovar qoldig'i (so'm)" oninput="const v=digits(this.value);this.value=v?fmt(v):''"></label>
   <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="rvc" placeholder="Kassadagi pul (so'm)" oninput="const v=digits(this.value);this.value=v?fmt(v):''"></label>
   <label class="field">${ic("pen-2-bold-duotone", 22)}<input id="rvn" placeholder="Izoh: yaroqsiz tovar va h.k. (ixtiyoriy)"></label>
-  <button class="btn b full" id="rvsave" onclick="saveRev()">${ic("check-circle-bold", 20)} Saqlash va hisoblash</button>`);
+  <div class="act"><button class="btn b full" id="rvsave" onclick="saveRev()">${ic("check-circle-bold", 20)} Saqlash va hisoblash</button></div>`);
   setTimeout(() => $("#rvs")?.focus(), 250);
 }
 async function saveRev(){
@@ -609,8 +613,18 @@ async function saveRev(){
     setTimeout(() => document.querySelector(".rvres")?.scrollIntoView({behavior:"smooth", block:"center"}), 400);
   }catch(e){ $("#rvsave").disabled = false; toast(esc(e.message), "danger-triangle-bold"); }
 }
+// Telegram ichida brauzerning tasdiqlash oynasi ko'pincha ishlamaydi — o'zimizniki
+function ask(msg, yes = "O'chirish"){
+  return new Promise(ok => {
+    const d = document.createElement("div"); d.className = "ask";
+    d.innerHTML = `<div><span style="color:var(--red);display:inline-grid">${ic("trash-bin-trash-bold-duotone", 40)}</span><b>${esc(msg)}</b><div class="row"><button class="btn" data-v="0">Bekor</button><button class="btn red" data-v="1">${esc(yes)}</button></div></div>`;
+    d.addEventListener("click", e => { const v = e.target.closest("[data-v]")?.dataset.v; if(v == null && e.target !== d) return; d.remove(); ok(v === "1"); });
+    document.body.appendChild(d);
+    try{ tgw?.HapticFeedback?.notificationOccurred("warning"); }catch(e){}
+  });
+}
 async function delRev(id){
-  if(!confirm("Bu revizya o'chirilsinmi?")) return;
+  if(!(await ask("Bu revizya o'chirilsinmi?"))) return;
   try{ await api("revizya_del", {id}); REV = REV.filter(r => r.id !== id); REVRES = ""; draw(); toast("O'chirildi"); }
   catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
 }
@@ -699,7 +713,7 @@ function openPerson(key){
     <b style="font-variant-numeric:tabular-nums" class="${r.kind === "pay" ? "green" : ""}">${r.kind === "pay" ? "−" : "+"}${fmt(r.amount)}</b><button onclick="delDebt(${r.id})" aria-label="O'chirish">${ic("trash-bin-trash-linear", 20)}</button></div>`).join("")}</div>`);
 }
 async function delDebt(id){
-  if(!confirm("Bu yozuv o'chirilsinmi?")) return;
+  if(!(await ask("Bu yozuv o'chirilsinmi?"))) return;
   const key = CUR?.key;
   try{ await api("del_debt", {id}); DEBTS = DEBTS.filter(d => d.id !== id); toast("O'chirildi"); draw(); people().some(x => x.key === key) ? openPerson(key) : closeModal(); }
   catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
@@ -717,7 +731,7 @@ function drawDebtForm(){
   <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="da" placeholder="Summa" value="${f.amount ? fmt(f.amount) : ""}" oninput="dform.amount=digits(this.value);this.value=dform.amount?fmt(dform.amount):''"></label>
   <label class="field">${ic("calendar-bold-duotone", 22)}<input type="date" value="${f.date}" max="${today()}" onchange="dform.date=this.value||today()"></label>
   <label class="field">${ic("pen-2-bold-duotone", 22)}<input placeholder="Izoh (ixtiyoriy)" value="${esc(f.note)}" oninput="dform.note=this.value"></label>
-  <button class="btn b full" id="dsave" onclick="saveDebt()">${ic("check-circle-bold", 20)} Saqlash</button>`);
+  <div class="act"><button class="btn b full" id="dsave" onclick="saveDebt()">${ic("check-circle-bold", 20)} Saqlash</button></div>`);
 }
 async function saveDebt(){
   const f = dform;
@@ -846,7 +860,7 @@ function drawForm(){
   <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="ea" placeholder="Summa" value="${e.amount ? fmt(e.amount) : ""}" oninput="edit.amount=digits(this.value);this.value=edit.amount?fmt(edit.amount):''"></label>
   <label class="field">${ic("calendar-bold-duotone", 22)}<input type="date" value="${e.date}" max="${today()}" onchange="edit.date=this.value||today()"></label>
   <label class="field">${ic("pen-2-bold-duotone", 22)}<input value="${esc(e.note)}" oninput="edit.note=this.value" placeholder="Izoh (ixtiyoriy)"></label>
-  <div class="row" style="margin-top:4px">${e.id ? `<button class="btn red" onclick="delItem()">${ic("trash-bin-trash-bold", 20)} O'chirish</button>` : ""}<button class="btn b" id="esave" onclick="saveForm()">${ic("check-circle-bold", 20)} Saqlash</button></div>`);
+  <div class="row act">${e.id ? `<button class="btn red" onclick="delItem()">${ic("trash-bin-trash-bold", 20)} O'chirish</button>` : ""}<button class="btn b" id="esave" onclick="saveForm()">${ic("check-circle-bold", 20)} Saqlash</button></div>`);
 }
 async function saveForm(){
   const e = edit; if(!(e.amount > 0)) return toast("Summani kiriting", "danger-triangle-bold");
@@ -859,7 +873,7 @@ async function saveForm(){
   }catch(err){ b.disabled = false; toast(esc(err.message), "danger-triangle-bold"); }
 }
 async function delItem(){
-  if(!confirm("Bu yozuv o'chirilsinmi?")) return;
+  if(!(await ask("Bu yozuv o'chirilsinmi?"))) return;
   try{ await api("del", {id:edit.id}); ROWS = ROWS.filter(r => r.id !== edit.id); closeModal(); draw(); toast("O'chirildi"); }
   catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
 }
