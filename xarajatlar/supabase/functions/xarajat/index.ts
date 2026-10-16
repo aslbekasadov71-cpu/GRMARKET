@@ -699,6 +699,11 @@ async function buildPdf(range: string): Promise<{ bytes: Uint8Array; name: strin
       ["Xarajat (chiqim)", som(tot), "#b42318", "#fee4e2"],
       [sv - tot >= 0 ? "Qoldi" : "Kamomad", som(sv - tot), "#1849a9", "#e8f0ff"],
     ]);
+    const shopX = total(rs.filter((r) => r.scope === "dokon")), restX = tot - shopX;
+    tiles([
+      [sv - shopX >= 0 ? "Do'kon foydasi (savdo - do'kon xarajati)" : "Do'kon zarari (savdo - do'kon xarajati)", som(sv - shopX), sv - shopX >= 0 ? "#067647" : "#b42318", sv - shopX >= 0 ? "#dcfae6" : "#fee4e2"],
+      ["Shaxsiy + kommunal", som(restX), "#101828", "#f2f4f7"],
+    ]);
     tiles(SCOPES.map((s) => {
       const v = total(rs.filter((r) => r.scope === s));
       return [`${SN[s]}${tot ? ` - ${Math.round((v / tot) * 100)}%` : ""}`, som(v), "#101828", "#f2f4f7"] as [string, string, string, string];
@@ -780,13 +785,13 @@ async function tg(method: string, body: Row) {
 }
 const appUrl = () => CFG?.app_token ? `${WEB_URL}/#t=${CFG.app_token}` : WEB_URL;
 const B = {
-  today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot",
+  today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot", holat: "📈 Do'kon holati",
 };
 const mainKb = () => ({
   keyboard: [
-    [{ text: B.today }, { text: B.report }],
-    [{ text: B.debts }, { text: B.app, web_app: { url: appUrl() } }],
-    [{ text: B.pdf }, { text: B.help }],
+    [{ text: B.today }, { text: B.report }, { text: B.holat }],
+    [{ text: B.debts }, { text: B.pdf }],
+    [{ text: B.app, web_app: { url: appUrl() } }, { text: B.help }],
   ],
   resize_keyboard: true, is_persistent: true, input_field_placeholder: "Xarajat, savdo yoki qarzni yozing / ayting 🎤",
 });
@@ -870,7 +875,7 @@ const repKb2 = (cur: string) => ({ inline_keyboard: [
   Object.entries(RANGES).slice(0, 3).map(([k, l]) => ({ text: (k === cur ? "✓ " : "") + l, callback_data: `rep:${k}` })),
   Object.entries(RANGES).slice(3).map(([k, l]) => ({ text: (k === cur ? "✓ " : "") + l, callback_data: `rep:${k}` })),
   [{ text: "📋 Batafsil ro'yxat", callback_data: `rd:${cur}` }, { text: "📄 PDF yuklab olish", callback_data: `pdf:${cur}` }],
-  [{ text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
+  [{ text: "📈 Do'kon holati", callback_data: `hl:${cur === "prev" ? "prev" : cur === "week" ? "week" : "month"}` }, { text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
 ] });
 
 /* --- PDF ni Telegramga fayl qilib yuborish --- */
@@ -1025,6 +1030,115 @@ function dupText(d: Row) {
   return `⚠️ <b>Bular ${d.at ? hhmm(d.at) + " da" : "hozirgina"} yozilgan edi:</b>\n${items}\n\nIkki marta yozilmasligi uchun saqlamadim. Yana yozaymi?`;
 }
 
+/* --- 📈 Do'kon holati: foydami, zararmi, qayerga ketyapti --- */
+const isHealthQ = (t: string) => !/\d/.test(t) && /foyda|zarar|holat|minus|plyus|qayerga|ketyapti|daromad|yutyap|yutqaz|qanday ketyap|ahvol/i.test(t);
+const pct = (a: number, b: number) => (b ? Math.round(((a - b) / b) * 100) : null);
+function calcHealth(rows: Row[], a: string, b: string) {
+  const rs = rows.filter((r) => r.spent_on >= a && r.spent_on <= b);
+  const S = (k: string) => total(rs.filter((r) => r.kind !== "savdo" && r.scope === k));
+  const sv = total(rs.filter((r) => r.kind === "savdo")), shop = S("dokon"), me = S("shaxsiy"), kom = S("kommunal");
+  const per: Row[] = [];
+  for (let d = a; d <= b && d <= today(); d = nextDay(d)) {
+    const x = rs.filter((r) => r.spent_on === d);
+    const s = total(x.filter((r) => r.kind === "savdo")), e = total(x.filter((r) => r.kind !== "savdo" && r.scope === "dokon"));
+    per.push({ d, s, e, p: s - e });
+  }
+  const byCat: Record<string, number> = {};
+  rs.filter((r) => r.kind !== "savdo" && r.scope === "dokon").forEach((r) => { byCat[r.cat] = (byCat[r.cat] ?? 0) + Number(r.amount); });
+  const top = Object.entries(byCat).sort((x, y) => y[1] - x[1])[0];
+  return {
+    sv, shop, me, kom, foyda: sv - shop, qoldi: sv - shop - me - kom, per, n: per.length,
+    salesDays: per.filter((p) => p.s > 0).length, good: per.filter((p) => p.s > 0 && p.p >= 0).length,
+    bad: per.filter((p) => p.s > 0 && p.p < 0).length, missing: per.filter((p) => p.s === 0 && p.e > 0).length, top,
+  };
+}
+async function healthReport(range = "month") {
+  const t = today(), ms = monthStart();
+  const prevStart = new Date(Date.parse(ms + "T00:00:00Z") - 864e5).toISOString().slice(0, 8) + "01";
+  const [{ data }, drs] = await Promise.all([
+    db.from("xr_expenses").select("kind,scope,cat,amount,spent_on").gte("spent_on", prevStart < dAgo(13) ? prevStart : dAgo(13)).limit(10000),
+    debtRows(),
+  ]);
+  const rows = data ?? [];
+  const [a, b, titleH] = range === "prev" ? rangeOf("prev") : range === "week" ? rangeOf("week") : [ms, t, rangeOf("month")[2]];
+  const h = calcHealth(rows, a, b);
+  const w1 = calcHealth(rows, dAgo(6), t), w0 = calcHealth(rows, dAgo(13), dAgo(7));
+  const title = plainTitle(titleH);
+  const ok = h.foyda >= 0;
+  let x = `📈 <b>Do'kon holati</b> · ${esc(title)}\n\n`;
+  if (!h.sv && !h.shop) x += "📭 Bu davrda savdo ham, do'kon xarajati ham yozilmagan.\n";
+  else {
+    x += ok ? `🟢 <b>Do'kon FOYDADA</b>\n` : `🔴 <b>Do'kon ZARARDA</b>\n`;
+    x += `💰 Savdo                <b>${fmt(h.sv)}</b>\n🏪 Do'kon xarajati  <b>−${fmt(h.shop)}</b>\n`;
+    x += `${ok ? "✅" : "🔻"} <b>${ok ? "Foyda" : "Zarar"}: ${som(Math.abs(h.foyda))}</b>${h.sv ? ` · ${Math.round((h.foyda / h.sv) * 100)}%` : ""}\n`;
+    x += `\n👤 Shaxsiy −${fmt(h.me)} · 🧾 Kommunal −${fmt(h.kom)}\n💼 <b>Qo'lda qoldi: ${som(h.qoldi)}</b>\n`;
+  }
+  // yo'nalish
+  const ps = pct(w1.sv, w0.sv), pe = pct(w1.shop, w0.shop), pf = w1.foyda - w0.foyda;
+  if (w1.sv || w0.sv || w1.shop || w0.shop) {
+    const arrow = (v: number | null) => v === null ? "—" : v > 0 ? `⬆️ ${v}%` : v < 0 ? `⬇️ ${-v}%` : "➡️ 0%";
+    x += `\n🧭 <b>Qayerga ketyapti?</b> <i>(oxirgi 7 kun)</i>\nSavdo ${arrow(ps)} · Xarajat ${arrow(pe)}\n`;
+    x += pf > 0 ? "→ <b>Yaxshi tomonga</b> ketyapti 👍\n" : pf < 0 ? "→ <b>Yomon tomonga</b> ketyapti ⚠️\n" : "→ O'zgarish yo'q\n";
+  }
+  // taxmin
+  if (range === "month" && h.n >= 3 && h.salesDays) {
+    const dim = new Date(Date.UTC(+t.slice(0, 4), +t.slice(5, 7), 0)).getUTCDate();
+    const proj = (h.foyda / h.n) * dim;
+    x += `\n🔮 Shu tezlikda oy oxirigacha: <b>${proj >= 0 ? "+" : "−"}${short(Math.abs(proj))}</b> ${proj >= 0 ? "foyda" : "zarar"}\n`;
+  }
+  if (h.salesDays) x += `📅 Foydali kun: <b>${h.good}</b> · Zararli kun: <b>${h.bad}</b>\n`;
+  const ppl = debtPeople(drs), myDebt = ppl.filter((p) => p.dir === "out" && p.bal > 0).reduce((s, p) => s + p.bal, 0), theirs = ppl.filter((p) => p.dir === "in" && p.bal > 0).reduce((s, p) => s + p.bal, 0);
+  if (myDebt || theirs) x += `📒 Qarzlar: menga ${short(theirs)} · mendan ${short(myDebt)}\n`;
+  // maslahat
+  const tips: string[] = [];
+  if (h.missing > 0 || h.salesDays < Math.ceil(h.n / 2)) tips.push(`${h.missing || h.n - h.salesDays} kun savdo yozilmagan. Har kuni kechqurun «bugungi savdo …» deb ayting — shunda foyda aniq chiqadi.`);
+  if (!ok && h.top) tips.push(`Eng katta do'kon xarajati: ${CATS.dokon[h.top[0]]?.[1] ?? h.top[0]} (${short(h.top[1])}).`);
+  if (ps !== null && ps <= -10) tips.push(`Savdo oldingi haftaga nisbatan ${-ps}% kamaydi.`);
+  if (h.foyda > 0 && h.me + h.kom > h.foyda * 0.6) tips.push(`Shaxsiy va kommunal xarajatlar foydaning ${Math.round(((h.me + h.kom) / h.foyda) * 100)}% ini olyapti.`);
+  if (myDebt > 0 && h.qoldi > 0 && myDebt > h.qoldi * 2) tips.push(`Qarzingiz (${short(myDebt)}) qo'lda qolgan puldan ancha ko'p.`);
+  if (!tips.length && ok) tips.push("Yaxshi ketyapsiz! Shu tartibda davom eting 💪");
+  x += `\n💡 <b>Maslahat:</b>\n` + tips.slice(0, 3).map((s) => `• ${esc(s)}`).join("\n");
+  // grafik: kunlik foyda (yashil/qizil) + jami (ko'k chiziq)
+  let cum = 0;
+  const per = h.per, cumArr = per.map((p) => (cum += p.p));
+  const chart = per.length > 1 && (h.sv || h.shop) ? chartUrl(JSON.stringify({
+    type: "bar",
+    data: {
+      labels: per.map((p) => `${+p.d.slice(8)}.${p.d.slice(5, 7)}`),
+      datasets: [
+        { type: "line", label: "Jami foyda", data: cumArr, borderColor: C_BLUE, backgroundColor: "rgba(43,108,246,.08)", borderWidth: 3, pointRadius: 0, fill: true, lineTension: 0.3 },
+        { type: "bar", label: "Kunlik", data: per.map((p) => p.p), backgroundColor: per.map((p) => (p.p >= 0 ? C_GREEN : C_RED)) },
+      ],
+    },
+    options: {
+      title: { display: true, text: `Do'kon foydasi · ${title}`, fontSize: 18, fontColor: "#101828", fontStyle: "bold" },
+      legend: { position: "bottom", labels: { fontSize: 13, boxWidth: 13 } },
+      plugins: { datalabels: { display: false } },
+      scales: {
+        xAxes: [{ gridLines: { display: false }, ticks: { fontColor: "#8a94a6", fontSize: 11 } }],
+        yAxes: [{ gridLines: { color: "#eef1f5", zeroLineColor: "#98a2b3", zeroLineWidth: 2 }, ticks: { fontColor: "#8a94a6", fontSize: 11, callback: "__K__" } }],
+      },
+    },
+  }).replace('"__K__"', `function(v){var a=Math.abs(v),s=v<0?'-':'';return a>=1e6?s+(a/1e6).toFixed(a%1e6?1:0)+' mln':a>=1e3?s+Math.round(a/1e3)+'k':v}`), 860, 440) : null;
+  return { text: x, chart, h };
+}
+const holatKb = (cur: string) => ({ inline_keyboard: [
+  [["week", "7 kun"], ["month", "Shu oy"], ["prev", "O'tgan oy"]].map(([k, l]) => ({ text: `${k === cur ? "✓ " : ""}${l}`, callback_data: `hl:${k}` })),
+  [{ text: "📄 PDF hisobot", callback_data: `pdf:${cur}` }, { text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
+] });
+async function sendHealth(chat: number, range = "month", msg?: Row) {
+  const { text, chart } = await healthReport(range);
+  const kb = holatKb(range);
+  if (msg) await tg("deleteMessage", { chat_id: chat, message_id: msg.message_id });
+  if (chart && text.length <= 1024) {
+    const r = await tg("sendPhoto", { chat_id: chat, photo: chart, caption: text, parse_mode: "HTML", reply_markup: kb });
+    if (r.ok) return;
+  } else if (chart) {
+    await tg("sendPhoto", { chat_id: chat, photo: chart });
+  }
+  await send(chat, text, kb);
+}
+
 /* --- har kuni kechqurun avtomatik hisobot --- */
 async function eveningPost() {
   const [{ all }, drs] = await Promise.all([rangeRows("today"), debtRows()]);
@@ -1032,6 +1146,10 @@ async function eveningPost() {
   const bal = (d: string) => ppl.filter((p) => p.dir === d && Math.round(p.bal) > 0).reduce((a, p) => a + p.bal, 0);
   let post = "";
   if (!all.some((r) => r.kind === "savdo")) post += `\n\n⚠️ <b>Bugungi savdo hali yozilmagan.</b>\nAyting: <i>«bugungi savdo 2 mln 500 ming»</i>`;
+  try {
+    const { h } = await healthReport("month");
+    if (h.sv || h.shop) post += `\n\n📈 Shu oy: do'kon <b>${h.foyda >= 0 ? "foydada +" + fmt(h.foyda) : "zararda −" + fmt(-h.foyda)}</b> · batafsil: /holat`;
+  } catch (e) { console.error(e); }
   const bi = bal("in"), bo = bal("out");
   if (bi || bo) post += `\n\n📒 Menga qarzdor: <b>${fmt(bi)}</b>\n📒 Mening qarzim: <b>${fmt(bo)}</b>`;
   return post;
@@ -1063,12 +1181,15 @@ Oddiy gap bilan <b>yozing</b> yoki <b>🎤 ovozli xabar</b> yuboring:
 🧾 <b>Kommunal va soliq</b> — svet, gaz, suv, soliq
 Noto'g'ri bo'limga tushsa, yozuv ostidagi «→» tugmasi bilan ko'chiring yoki 🗑 bilan o'chiring.
 
+📈 <b>Do'kon holati</b> — foydadami, zarardami, qayerga ketyapti: /holat
+Yoki shunchaki so'rang: <i>«do'kon foydadami?»</i>, <i>«qayerga ketyapmiz?»</i>
+
 📄 <b>PDF hisobot</b> — barcha statistika va yozuvlar bitta faylda: /pdf
 Bir xil xabar ikki marta kelsa, bot so'rab oladi — ikki marta yozilmaydi.
 
 🌙 Har kuni soat 21:00 da kun yakuni keladi (o'chirish: /kechki).
 
-📅 Bugun · 📊 Hisobot · 📒 Qarzlar · 📄 PDF · 📱 Ilova`;
+📅 Bugun · 📊 Hisobot · 📈 Holat · 📒 Qarzlar · 📄 PDF · 📱 Ilova`;
 
 async function onTg(upd: Row) {
   const c = await cfg();
@@ -1115,6 +1236,7 @@ async function onTg(upd: Row) {
       return;
     }
     if (act === "rd") { await ack(); await send(chat, await reportText(arg)); return; }
+    if (act === "hl") { await ack(); await sendHealth(chat, ["week", "month", "prev"].includes(arg) ? arg : "month", (msg?.caption ?? msg?.text ?? "").startsWith("📈") ? msg : undefined); return; }
     if (act === "pdf") {
       await ack("📄 PDF tayyorlanmoqda…");
       try { await sendPdf(chat, PDF_R.some(([k]) => k === arg) || arg === "yday" ? arg : "month"); }
@@ -1187,6 +1309,7 @@ async function onTg(upd: Row) {
       return send(chat, off ? "🌙 Kechki hisobot <b>o'chirildi</b>. Qayta yoqish: /kechki" : "🌙 Kechki hisobot <b>yoqildi</b> — har kuni soat 21:00 da keladi.");
     },
     "/kunyakuni": () => evening(chat),
+    [B.holat]: () => sendHealth(chat), "/holat": () => sendHealth(chat),
     [B.pdf]: () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/pdf": () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/chiqish": async () => {
@@ -1203,6 +1326,8 @@ async function onTg(upd: Row) {
   const voice = m.voice ?? m.audio;
   if (voice) { await doVoice(chat, voice.file_id, voice.mime_type || "audio/ogg", false, voice.file_unique_id ?? ""); return; }
   if (!text) { await send(chat, "Xarajat, savdo yoki qarzni yozing yoki 🎤 ovozli xabar yuboring"); return; }
+  // savol: «do'kon foydadami?», «zarardamizmi», «qayerga ketyapti» — summa yo'q bo'lsa holatni ko'rsatamiz
+  if (isHealthQ(text)) { await sendHealth(chat, /o'tgan oy|otgan oy/i.test(text) ? "prev" : /hafta|7 kun/i.test(text) ? "week" : "month"); return; }
   await doText(chat, text);
 }
 
@@ -1304,6 +1429,7 @@ Deno.serve(async (req) => {
         { command: "hafta", description: "Oxirgi 7 kun" },
         { command: "oy", description: "Shu oy" },
         { command: "qarzlar", description: "Qarz daftari" },
+        { command: "holat", description: "Do'kon holati: foyda yoki zarar" },
         { command: "kunyakuni", description: "Kun yakuni hozir" },
         { command: "pdf", description: "PDF hisobot yuklab olish" },
         { command: "kechki", description: "21:00 dagi hisobotni yoqish/o'chirish" },

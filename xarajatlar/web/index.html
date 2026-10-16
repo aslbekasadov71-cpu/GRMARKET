@@ -141,6 +141,81 @@ nav button.on{color:var(--b)}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .green{color:#16a34a}.redt{color:var(--red)}
+/* ===== animatsiyalar ===== */
+@keyframes rise{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.2) rotate(-14deg);opacity:0}60%{transform:scale(1.18) rotate(5deg);opacity:1}100%{transform:none;opacity:1}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(3deg)}}
+@keyframes shake{0%,12%,100%{transform:translateX(0)}3%,9%{transform:translateX(-4px)}6%{transform:translateX(4px)}}
+@keyframes drop{0%,100%{transform:translateY(-1px)}50%{transform:translateY(3px)}}
+@keyframes grow{from{transform:scaleY(0)}}
+@keyframes growX{from{transform:scaleX(0)}}
+@keyframes donutIn{from{transform:rotate(-140deg) scale(.55);opacity:0}}
+@keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes fade{from{opacity:0}}
+@keyframes ring{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.9);opacity:0}}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-18px) scale(.9)}}
+@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes climb{0%{transform:translate(-3px,3px);opacity:.5}50%{transform:translate(2px,-2px);opacity:1}100%{transform:translate(-3px,3px);opacity:.5}}
+#body.anim>*{animation:rise .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms)}
+#body.anim .ico iconify-icon,#body.anim .av,#body.anim .stile small iconify-icon,#body.anim .frow .fi iconify-icon,#body.anim .tip iconify-icon{animation:pop .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms + 180ms)}
+#body.anim .pbar i{animation:growX .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms + 200ms);transform-origin:left}
+#body.anim .bcol i{animation:grow .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--j,0)*22ms + 160ms);transform-origin:bottom}
+#body.anim .dg{animation:donutIn .9s cubic-bezier(.2,.8,.2,1) both .15s;transform-origin:80px 80px}
+#body.anim .hline{animation:draw 1.4s ease-out both .3s}
+#body.anim .harea{animation:fade 1s ease-out both .8s}
+#body.anim .hbar{animation:grow .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--j,0)*20ms + 200ms);transform-box:fill-box;transform-origin:bottom}
+#body.anim .hbar.neg{transform-origin:top}
+.stat .sicon{position:absolute;right:16px;top:14px;z-index:1;opacity:.95;animation:floaty 3.2s ease-in-out infinite}
+.pill .dl{animation:drop 1.6s ease-in-out infinite}
+.pill.spinning iconify-icon{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty iconify-icon{animation:floaty 3s ease-in-out infinite}
+nav button.just iconify-icon{animation:pop .5s cubic-bezier(.2,.8,.2,1)}
+nav button iconify-icon{transition:transform .2s}nav button:active iconify-icon{transform:scale(.85)}
+#toast.show{animation:toastIn .35s cubic-bezier(.2,.8,.2,1)}
+#toast.show iconify-icon{animation:pop .5s .1s both}
+.mic{position:relative}
+.mic.rec::before,.mic.rec::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--red);animation:ring 1.4s ease-out infinite}
+.mic.rec::after{animation-delay:.7s}
+.chip,.seg button,.stile,.card,.btn{transition:background .2s,color .2s,border-color .2s,transform .12s}
+.card:active,.stile:active{transform:scale(.98)}
+.hint .ok iconify-icon{animation:pop .5s both;color:var(--ok)}
+/* ===== do'kon holati ===== */
+.hero{border-radius:22px;padding:18px;margin-bottom:10px;color:#fff;position:relative;overflow:hidden}
+.hero.ok{background:linear-gradient(135deg,#12b76a,#3ccb7f)}.hero.bad{background:linear-gradient(135deg,#f04438,#f97066)}
+.hero:before{content:"";position:absolute;right:-40px;bottom:-60px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.12)}
+.hero small{color:rgba(255,255,255,.85);font-weight:600}
+.hero h3{font-size:20px;font-weight:800;margin-top:2px}
+.hero .big{font-size:32px;font-weight:800;letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums;position:relative}
+.hero .hicon{position:absolute;right:16px;top:16px;width:58px;height:58px;border-radius:18px;background:rgba(255,255,255,.2);display:grid;place-items:center}
+.hero.ok .hicon iconify-icon{animation:climb 2.4s ease-in-out infinite}
+.hero.bad .hicon iconify-icon{animation:shake 3s ease-in-out infinite}
+.hero .mg{display:inline-block;background:rgba(255,255,255,.22);border-radius:99px;padding:3px 10px;font-size:13px;font-weight:700;margin-top:8px}
+.frow{display:flex;align-items:center;gap:10px;padding:9px 0}
+.frow .fi{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none}
+.frow span{flex:1;font-weight:600}
+.frow b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.frow.sum{border-top:2px dashed var(--line);margin-top:2px}
+.frow.sum span,.frow.sum b{font-weight:800;font-size:17px}
+.dir{display:flex;gap:8px;margin-top:10px}
+.dir div{flex:1;background:var(--bg);border-radius:14px;padding:10px 12px}
+.dir b{display:flex;align-items:center;gap:4px;font-size:18px;font-weight:800}
+.verdict{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:12px;font-weight:700}
+.verdict.up{background:var(--okl);color:#067647}.verdict.down{background:var(--redl);color:var(--red)}.verdict.flat{background:var(--bg);color:var(--mute)}
+.compass{animation:wiggle 4s ease-in-out infinite}
+.beat{animation:beat 2s ease-in-out infinite}
+.pills{display:flex;gap:8px}
+.pills div{flex:1;border-radius:14px;padding:10px;text-align:center}
+.pills b{display:block;font-size:22px;font-weight:800}
+.pills small{font-size:12px;font-weight:700;color:inherit;opacity:.85}
+.tip{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-weight:600;font-size:14.5px;line-height:1.45}
+.tip .fi{width:30px;height:30px;border-radius:10px;background:#fef0c7;color:#b54708;display:grid;place-items:center;flex:none}
+.hchart svg{display:block;width:100%;height:auto;overflow:visible}
+.hbar{cursor:pointer}
+.mini{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:18px;padding:12px 14px;margin-bottom:10px;width:100%;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.mini .ico{width:46px;height:46px}
+.mini .grow{flex:1;min-width:0}
 @media(min-width:900px){#app{max-width:720px}.slab{max-width:720px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -204,7 +279,7 @@ async function api(action, body = {}){
 function logout(){ T = ""; try{ localStorage.removeItem("xr_t"); }catch(e){} loginView(); }
 let tT;
 function toast(msg, icon = "check-circle-bold"){
-  const t = $("#toast"); t.innerHTML = ic(icon, 18) + `<span>${msg}</span>`; t.style.display = "flex";
+  const t = $("#toast"); t.innerHTML = ic(icon, 18) + `<span>${msg}</span>`; t.style.display = "flex"; t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
   clearTimeout(tT); tT = setTimeout(() => t.style.display = "none", 2600);
 }
 function loginView(){
@@ -227,9 +302,10 @@ const inDates = r => { const [a, b] = range(); return r.spent_on >= a && r.spent
 const inRange = r => inDates(r) && (scope === "all" || isS(r) || r.scope === scope);
 
 async function load(){
+  document.querySelectorAll(".pill.rf").forEach(b => b.classList.add("spinning"));
   try{
     const j = await api("list", {from: mStart(-1) < dAgo(62) ? mStart(-1) : dAgo(62)});
-    ROWS = j.rows || []; DEBTS = j.debts || []; draw();
+    ROWS = j.rows || []; DEBTS = j.debts || []; ANIM = true; draw();
   }catch(e){ if(T && $("#body")) $("#body").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone", 42)}<br>${esc(e.message)}</div>`; }
 }
 
@@ -246,26 +322,47 @@ function shell(){
     document.body.appendChild(document.createElement("nav"));
   }
 }
+let lastTab = "", ANIM = true;
 function drawNav(){
-  const N = [["home","chart-2-bold-duotone","Asosiy"],["list","document-text-bold-duotone","Ro'yxat"],["debts","notebook-bold-duotone","Qarzlar"]];
-  $("nav").innerHTML = N.map(([k, i, l]) => `<button class="${tab===k?"on":""}" onclick="go('${k}')">${ic(i, 26)}${l}</button>`).join("");
+  const N = [["home","home-smile-bold-duotone","Asosiy"],["holat","graph-up-bold-duotone","Holat"],["list","document-text-bold-duotone","Ro'yxat"],["debts","notebook-bold-duotone","Qarzlar"]];
+  $("nav").innerHTML = N.map(([k, i, l]) => `<button class="${tab===k?"on":""} ${tab===k && lastTab!==k ? "just" : ""}" onclick="go('${k}')">${ic(i, 26)}${l}</button>`).join("");
+  lastTab = tab;
 }
-function go(k){ tab = k; try{ localStorage.setItem("xr_tab", k); }catch(e){} draw(); scrollTo(0, 0); }
+function go(k){ tab = k; try{ localStorage.setItem("xr_tab", k); }catch(e){} ANIM = true; draw(); scrollTo(0, 0); try{ tgw?.HapticFeedback?.impactOccurred("light"); }catch(e){} }
+// animatsiya: bloklar ketma-ket chiqadi, raqamlar sanaladi
+function afterDraw(){
+  const b = $("#body"); if(!b) return;
+  if(ANIM){
+    [...b.children].forEach((el, i) => el.style.setProperty("--i", Math.min(i, 12)));
+    b.classList.remove("anim"); void b.offsetWidth; b.classList.add("anim");
+    b.querySelectorAll("[data-n]").forEach(el => {
+      const v = +el.dataset.n, pre = el.dataset.pre || "", t0 = performance.now(), dur = 900;
+      const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = pre + fmt(v * e); if(k < 1) requestAnimationFrame(step); };
+      el.textContent = pre + "0"; requestAnimationFrame(step);
+    });
+    clearTimeout(window.aT); window.aT = setTimeout(() => b.classList.remove("anim"), 2200);
+  }
+  ANIM = false;
+  document.querySelectorAll(".pill.rf").forEach(x => x.classList.remove("spinning"));
+}
+const N_ = (v, pre = "") => `<span data-n="${Math.round(v)}" data-pre="${pre}">${pre}${fmt(v)}</span>`;
 
 function header(title, sub, pdf = true){
   return `<div class="top"><div><small>${sub}</small><h1>${title}</h1></div><div class="row" style="gap:6px;flex:none">
-    ${pdf ? `<button class="pill" onclick="openPdf()" aria-label="PDF hisobot">${ic("file-download-bold", 16)} PDF</button>` : ""}
-    <button class="pill" onclick="load().then(()=>toast('Yangilandi'))" aria-label="Yangilash">${ic("refresh-bold", 16)}</button></div></div>`;
+    ${pdf ? `<button class="pill" onclick="openPdf()" aria-label="PDF hisobot"><span class="dl" style="display:grid">${ic("file-download-bold", 16)}</span> PDF</button>` : ""}
+    <button class="pill rf" onclick="load().then(()=>toast('Yangilandi'))" aria-label="Yangilash">${ic("refresh-bold", 16)}</button></div></div>`;
 }
-function perChips(){ return `<div class="chips">${PER.map(([k, l]) => `<button class="chip ${per===k?"on":""}" onclick="per='${k}';draw()">${l}</button>`).join("")}</div>`; }
-function scopeSeg(){ return `<div class="seg">${[["all","Hammasi","widget-bold"], ...SCOPES.map(k => [k, SC[k].n, SC[k].i])].map(([k, l, i]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';draw()">${ic(i, 16)}${l}</button>`).join("")}</div>`; }
+function perChips(){ return `<div class="chips">${PER.map(([k, l]) => `<button class="chip ${per===k?"on":""}" onclick="per='${k}';ANIM=true;draw()">${l}</button>`).join("")}</div>`; }
+function scopeSeg(){ return `<div class="seg">${[["all","Hammasi","widget-bold"], ...SCOPES.map(k => [k, SC[k].n, SC[k].i])].map(([k, l, i]) => `<button class="${scope===k?"on":""}" onclick="scope='${k}';ANIM=true;draw()">${ic(i, 16)}${l}</button>`).join("")}</div>`; }
 
 function draw(){
   if(!$("#body")) return;
   drawNav();
-  if(tab === "debts") return drawDebts();
-  if(tab === "list") return drawList();
-  drawHome();
+  if(tab === "debts") drawDebts();
+  else if(tab === "list") drawList();
+  else if(tab === "holat") drawHolat();
+  else drawHome();
+  afterDraw();
 }
 
 /* ---------- Asosiy ---------- */
@@ -274,12 +371,16 @@ function drawHome(){
   const sv = scope === "all" || scope === "dokon" ? sum(ROWS.filter(inDates).filter(isS)) : 0, left = sv - tot;
   const pl = PER.find(p => p[0] === per)[1], d = new Date();
   let h = header("Xarajatlar", d.getDate() + "-" + MON[d.getMonth()] + ", " + d.getFullYear()) + perChips() + scopeSeg();
-  h += `<div class="stat"><small>${pl} · ${rs.length} ta xarajat${scope !== "all" ? " · " + SC[scope].n : ""}</small><div class="big">${som(tot)}</div>
-    <div class="sp"><div><small>${ic("arrow-down-left-bold", 14)} Savdo</small><b>${fmt(sv)}</b></div><div><small>${ic(left >= 0 ? "check-circle-bold" : "danger-triangle-bold", 14)} Qoldi</small><b>${fmt(left)}</b></div></div></div>`;
+  h += `<div class="stat"><span class="sicon">${ic("wallet-money-bold-duotone", 34)}</span><small>${pl} · ${rs.length} ta xarajat${scope !== "all" ? " · " + SC[scope].n : ""}</small><div class="big">${N_(tot)} so'm</div>
+    <div class="sp"><div><small>${ic("arrow-down-left-bold", 14)} Savdo</small><b>${N_(sv)}</b></div><div><small>${ic(left >= 0 ? "check-circle-bold" : "danger-triangle-bold", 14)} Qoldi</small><b>${N_(left)}</b></div></div></div>`;
   // 3 bo'lim: bosilsa filtr
   const allX = ROWS.filter(inDates).filter(r => !isS(r)), totX = sum(allX);
   h += `<div class="stiles">${SCOPES.map(k => { const v = sum(allX.filter(r => r.scope === k));
-    return `<button class="stile ${scope === k ? "on" : ""}" style="color:${SC[k].c}" onclick="scope=scope==='${k}'?'all':'${k}';draw()"><small>${ic(SC[k].i, 14)}${SC[k].n}</small><b>${short(v)}</b><div class="pbar" style="background:${SC[k].bg}"><i style="width:${totX ? v / totX * 100 : 0}%;background:${SC[k].c}"></i></div></button>`; }).join("")}</div>`;
+    return `<button class="stile ${scope === k ? "on" : ""}" style="color:${SC[k].c}" onclick="scope=scope==='${k}'?'all':'${k}';ANIM=true;draw()"><small>${ic(SC[k].i, 14)}${SC[k].n}</small><b>${short(v)}</b><div class="pbar" style="background:${SC[k].bg}"><i style="width:${totX ? v / totX * 100 : 0}%;background:${SC[k].c}"></i></div></button>`; }).join("")}</div>`;
+  // do'kon holati (shu oy) — qisqa
+  { const H = health(mStart(), today()); if(H.sv || H.shop){ const ok = H.foyda >= 0;
+    h += `<button class="mini" onclick="go('holat')"><div class="ico" style="background:${ok ? "var(--okl)" : "var(--redl)"};color:${ok ? "#067647" : "var(--red)"}"><span class="beat" style="display:grid">${ic(ok ? "graph-up-bold-duotone" : "graph-down-bold-duotone", 26)}</span></div>
+      <div class="grow"><small>Do'kon holati · shu oy</small><b style="color:${ok ? "#067647" : "var(--red)"}">${ok ? "Foydada" : "Zararda"} ${ok ? "+" : "−"}${fmt(Math.abs(H.foyda))}</b></div>${ic("alt-arrow-right-linear", 22)}</button>`; } }
   const P = people(), inn = P.filter(p => p.dir === "in" && p.bal > 0), out = P.filter(p => p.dir === "out" && p.bal > 0);
   if(inn.length || out.length) h += `<div class="dtiles" onclick="go('debts')" style="cursor:pointer"><div class="dtile in"><small>${ic("arrow-down-left-bold", 15)} Menga qarzdor</small><b>${fmt(sum(inn.map(p => ({amount:p.bal}))))}</b></div><div class="dtile out"><small>${ic("arrow-up-right-bold", 15)} Mening qarzim</small><b>${fmt(sum(out.map(p => ({amount:p.bal}))))}</b></div></div>`;
   // kunlik grafik: surib ko'rish, bosganda raqamlar
@@ -311,7 +412,7 @@ function drawHome(){
 let BD = null, DS = null, selDay = null, selCat = null;
 function barsHtml(){
   const {days, ex, sl} = BD, hasS = days.some(x => sl[x]), mx = Math.max(...days.map(x => Math.max(ex[x] || 0, sl[x] || 0)), 1);
-  return `<div class="bscroll" id="bscroll"><div class="bars2">${days.map((x, i) => `<button class="bcol ${x === selDay ? "on" : ""}" data-d="${x}" onclick="pickDay('${x}')">
+  return `<div class="bscroll" id="bscroll"><div class="bars2">${days.map((x, i) => `<button class="bcol ${x === selDay ? "on" : ""}" style="--j:${i}" data-d="${x}" onclick="pickDay('${x}')">
     <div class="pair"><i class="${ex[x] ? "" : "z"}" style="height:${Math.round((ex[x] || 0) / mx * 100)}%"></i>${hasS ? `<i class="s ${sl[x] ? "" : "z"}" style="height:${Math.round((sl[x] || 0) / mx * 100)}%"></i>` : ""}</div>
     <small style="${x === today() ? "color:var(--b)" : ""}">${+x.slice(8)}</small><em>${i === 0 || x.slice(8) === "01" ? MON3[+x.slice(5, 7) - 1] : ""}</em></button>`).join("")}</div></div>`;
 }
@@ -335,7 +436,7 @@ function drawDonut(){
     off += len; return c; }).join("");
   const sel = selCat != null ? cs[selCat] : null, sx = sel ? cat(...sel[0].split("|")) : null;
   const big = sel ? short(sel[1]) : short(tot), sub = sel ? Math.round(sel[1] / tot * 100) + "%" : "so'm · jami";
-  el.innerHTML = `<div class="donut"><svg width="160" height="160" viewBox="0 0 160 160"><circle r="${R}" cx="80" cy="80" fill="none" stroke="#f2f4f7" stroke-width="22" onclick="pickCat(null)"/>${segs}
+  el.innerHTML = `<div class="donut"><svg width="160" height="160" viewBox="0 0 160 160"><circle r="${R}" cx="80" cy="80" fill="none" stroke="#f2f4f7" stroke-width="22" onclick="pickCat(null)"/><g class="dg">${segs}</g>
     <text x="80" y="80" text-anchor="middle" font-size="19" font-weight="800" fill="${sel ? sx[2] : "#101828"}" font-family="Manrope,sans-serif" onclick="pickCat(null)">${big}</text><text x="80" y="98" text-anchor="middle" font-size="11" font-weight="600" fill="#8a94a6" font-family="Manrope,sans-serif">${sub}</text></svg>
     <div class="lg">${cs.slice(0, 7).map(([k, v], i) => { const x = cat(...k.split("|")); return `<button class="${selCat === i ? "on" : ""}" onclick="pickCat(${i})"><i style="background:${x[2]}"></i><span>${esc(x[1])}</span><b>${Math.round(v / tot * 100)}%</b></button>`; }).join("")}</div></div>
     <div class="dsel">${sel ? `${esc(sx[1])}: <b>${som(sel[1])}</b> · ${SC[sel[0].split("|")[0]]?.n ?? ""}` : "Bo'lakni bosing — summasi ko'rinadi"}</div>`;
@@ -346,6 +447,95 @@ function item(r){
   return `<button class="card" onclick="openForm(${r.id})"><div class="ico" style="background:${tint(x[2])};color:${x[2]}">${ic(x[0], 24)}</div>
     <div class="grow"><b>${esc(t || x[1])}</b><small>${s ? `<span class="tag" style="background:var(--okl);color:#067647">Savdo</span>` : SC[r.scope] ? `<span class="tag" style="background:${SC[r.scope].bg};color:${SC[r.scope].c}">${SC[r.scope].n}</span>` : ""}${t ? esc(x[1]) + " · " : ""}${r.spent_on !== today() && tab === "home" && per !== "today" ? dLabel(r.spent_on) + " " : ""}${hhmm(r.created_at)}${r.source?.includes("voice") ? " · 🎤" : ""}</small></div>
     <div class="right ${s ? "green" : ""}">${s ? "+" : "−"}${fmt(r.amount)}</div></button>`;
+}
+
+/* ---------- 📈 Do'kon holati ---------- */
+function health(a, b){
+  const rs = ROWS.filter(r => r.spent_on >= a && r.spent_on <= b);
+  const S = k => sum(rs.filter(r => !isS(r) && r.scope === k));
+  const sv = sum(rs.filter(isS)), shop = S("dokon"), me = S("shaxsiy"), kom = S("kommunal"), per = [];
+  for(let x = new Date(a + "T00:00:00"); iso(x) <= b && iso(x) <= today(); x.setDate(x.getDate() + 1)){
+    const d = iso(x), xs = rs.filter(r => r.spent_on === d), s = sum(xs.filter(isS)), e = sum(xs.filter(r => !isS(r) && r.scope === "dokon"));
+    per.push({d, s, e, p:s - e});
+  }
+  const bc = {}; rs.filter(r => !isS(r) && r.scope === "dokon").forEach(r => bc[r.cat] = (bc[r.cat] || 0) + +r.amount);
+  const top = Object.entries(bc).sort((x, y) => y[1] - x[1])[0];
+  return {sv, shop, me, kom, foyda:sv - shop, qoldi:sv - shop - me - kom, per, n:per.length, top,
+    salesDays:per.filter(p => p.s > 0).length, good:per.filter(p => p.s > 0 && p.p >= 0).length, bad:per.filter(p => p.s > 0 && p.p < 0).length, missing:per.filter(p => p.s === 0 && p.e > 0).length};
+}
+const pctc = (a, b) => b ? Math.round((a - b) / b * 100) : null;
+let hper = "month", HD = null, selH = null;
+function drawHolat(){
+  const [a, b] = hper === "week" ? [dAgo(6), today()] : hper === "prev" ? [mStart(-1), mEnd(-1)] : [mStart(), today()];
+  const H = health(a, b), ok = H.foyda >= 0, w1 = health(dAgo(6), today()), w0 = health(dAgo(13), dAgo(7));
+  const pl = hper === "week" ? "Oxirgi 7 kun" : hper === "prev" ? MON[new Date(mStart(-1)).getMonth()] + " oyi" : MON[new Date().getMonth()] + " oyi · 1–" + new Date().getDate();
+  let h = header("Do'kon holati", "Foydami, zararmi — sodda hisob") + `<div class="chips">${[["week","7 kun"],["month","Shu oy"],["prev","O'tgan oy"]].map(([k, l]) => `<button class="chip ${hper===k?"on":""}" onclick="hper='${k}';ANIM=true;draw()">${l}</button>`).join("")}</div>`;
+  if(!H.sv && !H.shop){ $("#body").innerHTML = h + `<div class="empty">${ic("graph-up-bold-duotone", 54)}<br><b style="color:var(--ink)">Bu davrda ma'lumot yo'q</b><br><small>Savdo va do'kon xarajatlarini yozing — holat shu yerda chiqadi</small></div>`; return; }
+  // 1) asosiy javob
+  h += `<div class="hero ${ok ? "ok" : "bad"}"><div class="hicon">${ic(ok ? "graph-up-bold-duotone" : "graph-down-bold-duotone", 34)}</div>
+    <small>${pl}</small><h3>${ok ? "Do'kon foydada 👍" : "Do'kon zararda"}</h3>
+    <div class="big">${ok ? "+" : "−"}${N_(Math.abs(H.foyda))} so'm</div>${H.sv ? `<span class="mg">${ok ? "Har 100 so'm savdodan " + Math.round(H.foyda / H.sv * 100) + " so'm foyda" : "Xarajat savdodan " + fmt(-H.foyda) + " so'm ko'p"}</span>` : ""}</div>`;
+  // 2) hisob qanday chiqdi
+  const fr = (icon, col, bg, label, v, sign) => `<div class="frow"><div class="fi" style="background:${bg};color:${col}">${ic(icon, 20)}</div><span>${label}</span><b style="color:${col}">${sign}${N_(Math.abs(v))}</b></div>`;
+  h += `<h2><span>Hisob qanday chiqdi?</span></h2><div class="panel">
+    ${fr("wallet-money-bold-duotone", "#067647", "var(--okl)", "Savdo (kassaga tushgan)", H.sv, "+")}
+    ${fr("shop-bold-duotone", "#2b6cf6", "var(--bl)", "Do'kon xarajati", H.shop, "−")}
+    <div class="frow sum"><div class="fi" style="background:${ok ? "var(--okl)" : "var(--redl)"};color:${ok ? "#067647" : "var(--red)"}">${ic(ok ? "graph-up-bold-duotone" : "graph-down-bold-duotone", 20)}</div><span>Do'kon ${ok ? "foydasi" : "zarari"}</span><b style="color:${ok ? "#067647" : "var(--red)"}">${ok ? "+" : "−"}${fmt(Math.abs(H.foyda))}</b></div>
+    ${fr("user-rounded-bold-duotone", "#6941c6", "#f4ebff", "Shaxsiy xarajat", H.me, "−")}
+    ${fr("bill-list-bold-duotone", "#b54708", "#fef0c7", "Kommunal va soliq", H.kom, "−")}
+    <div class="frow sum"><div class="fi" style="background:var(--bl);color:var(--b)">${ic("safe-square-bold-duotone", 20)}</div><span>Qo'lda qoldi</span><b style="color:${H.qoldi < 0 ? "var(--red)" : "var(--b)"}">${H.qoldi < 0 ? "−" : ""}${fmt(Math.abs(H.qoldi))}</b></div></div>`;
+  // 3) qayerga ketyapti
+  const ps = pctc(w1.sv, w0.sv), pe = pctc(w1.shop, w0.shop), pf = w1.foyda - w0.foyda;
+  const arr = (v, good) => v === null ? `<b style="color:var(--mute)">—</b>` : `<b style="color:${(v >= 0) === good ? "#067647" : "var(--red)"}">${ic(v >= 0 ? "arrow-right-up-bold" : "arrow-right-down-bold", 18)}${Math.abs(v)}%</b>`;
+  h += `<h2><span>Qayerga ketyapti?</span><span>oxirgi 7 kun</span></h2><div class="panel">
+    <div class="row" style="gap:10px"><div class="ico compass" style="flex:none;background:#e0f2fe;color:#0086c9">${ic("compass-bold-duotone", 26)}</div><div style="flex:1"><b>Oldingi 7 kunga nisbatan</b><small>Savdo va do'kon xarajati qanday o'zgardi</small></div></div>
+    <div class="dir"><div><small>Savdo</small>${arr(ps, true)}</div><div><small>Xarajat</small>${arr(pe, false)}</div><div><small>Foyda</small><b style="color:${pf >= 0 ? "#067647" : "var(--red)"}">${pf >= 0 ? "+" : "−"}${short(Math.abs(pf))}</b></div></div>
+    <div class="verdict ${pf > 0 ? "up" : pf < 0 ? "down" : "flat"}">${ic(pf > 0 ? "like-bold-duotone" : pf < 0 ? "danger-triangle-bold-duotone" : "minus-circle-bold-duotone", 20)}${pf > 0 ? "Yaxshi tomonga ketyapti" : pf < 0 ? "Yomon tomonga ketyapti — e'tibor bering" : "O'zgarish yo'q"}</div></div>`;
+  // 4) foyda grafigi
+  HD = H.per; if(!HD.some(p => p.d === selH)) selH = HD.length ? HD[HD.length - 1].d : null;
+  if(HD.length > 1) h += `<h2><span>Foyda grafigi</span><span>ustunni bosing</span></h2><div class="panel hchart"><div id="hinfo"></div>${hChart(HD)}
+    <div class="legend"><span><i style="background:var(--ok)"></i>Foydali kun</span><span><i style="background:var(--red)"></i>Zararli kun</span><span><i style="background:var(--b);height:3px"></i>Jami</span></div></div>`;
+  // 5) kunlar va taxmin
+  if(H.salesDays) h += `<div class="pills" style="margin-bottom:10px"><div style="background:var(--okl);color:#067647">${ic("like-bold-duotone", 22)}<b>${H.good}</b><small>foydali kun</small></div><div style="background:var(--redl);color:var(--red)">${ic("dislike-bold-duotone", 22)}<b>${H.bad}</b><small>zararli kun</small></div><div style="background:#fef0c7;color:#b54708">${ic("pen-new-square-bold-duotone", 22)}<b>${H.n - H.salesDays}</b><small>savdo yozilmagan</small></div></div>`;
+  if(hper === "month" && H.n >= 3 && H.salesDays){
+    const dim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(), proj = H.foyda / H.n * dim;
+    h += `<div class="mini" style="cursor:default"><div class="ico" style="background:#f4ebff;color:#7a5af8"><span class="beat" style="display:grid">${ic("target-bold-duotone", 26)}</span></div><div class="grow"><small>Shu tezlikda oy oxirigacha</small><b style="color:${proj >= 0 ? "#067647" : "var(--red)"}">${proj >= 0 ? "~ +" : "~ −"}${fmt(Math.abs(proj))} so'm ${proj >= 0 ? "foyda" : "zarar"}</b></div></div>`;
+  }
+  // 6) maslahat
+  const tips = [], P = people(), myDebt = P.filter(p => p.dir === "out" && p.bal > 0).reduce((s, p) => s + p.bal, 0);
+  if(H.n - H.salesDays > 0) tips.push(["pen-new-square-bold-duotone", `${H.n - H.salesDays} kun savdo yozilmagan. Har kuni kechqurun «bugungi savdo …» deb ayting — shunda foyda aniq chiqadi.`]);
+  if(!ok && H.top) tips.push(["shop-bold-duotone", `Eng katta do'kon xarajati: ${cat("dokon", H.top[0])[1]} — ${fmt(H.top[1])} so'm.`]);
+  if(ps !== null && ps <= -10) tips.push(["graph-down-bold-duotone", `Savdo oldingi haftaga nisbatan ${-ps}% kamaydi.`]);
+  if(H.foyda > 0 && H.me + H.kom > H.foyda * .6) tips.push(["user-rounded-bold-duotone", `Shaxsiy va kommunal xarajatlar foydaning ${Math.round((H.me + H.kom) / H.foyda * 100)}% ini olyapti.`]);
+  if(myDebt > 0 && myDebt > Math.max(H.qoldi, 0) * 2) tips.push(["notebook-bold-duotone", `Qarzingiz (${fmt(myDebt)} so'm) qo'lda qolgan puldan ancha ko'p.`]);
+  if(!tips.length && ok) tips.push(["cup-star-bold-duotone", "Yaxshi ketyapsiz! Shu tartibda davom eting 💪"]);
+  h += `<h2><span>Maslahat</span></h2><div class="panel">${tips.slice(0, 4).map(([i, t]) => `<div class="tip"><div class="fi">${ic(i, 18)}</div><div>${esc(t)}</div></div>`).join("")}</div>`;
+  $("#body").innerHTML = h;
+  hInfo();
+}
+function hChart(per){
+  const W = 320, Hh = 150, pad = 6, n = per.length, bw = (W - pad * 2) / n;
+  let c = 0; const cum = per.map(p => c += p.p);
+  const mx = Math.max(0, ...per.map(p => p.p), ...cum), mn = Math.min(0, ...per.map(p => p.p), ...cum), rng = (mx - mn) || 1;
+  const y = v => 8 + (mx - v) / rng * (Hh - 16), y0 = y(0);
+  const bars = per.map((p, i) => { const h = Math.abs(y(p.p) - y0), neg = p.p < 0;
+    return `<rect class="hbar ${neg ? "neg" : ""}" style="--j:${i}" data-d="${p.d}" x="${pad + i * bw + bw * .18}" y="${neg ? y0 : y0 - h}" width="${bw * .64}" height="${Math.max(h, 1.5)}" rx="${Math.min(4, bw * .2)}" fill="${p.d === selH ? (neg ? "#b42318" : "#067647") : (neg ? "#f04438" : "#12b76a")}" opacity="${p.s || p.e ? 1 : .25}" onclick="pickH('${p.d}')"/>`; }).join("");
+  const pts = cum.map((v, i) => `${(pad + i * bw + bw / 2).toFixed(1)},${y(v).toFixed(1)}`);
+  return `<svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" style="height:170px"><defs><linearGradient id="hg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2b6cf6" stop-opacity=".18"/><stop offset="1" stop-color="#2b6cf6" stop-opacity="0"/></linearGradient></defs>
+    <line x1="0" x2="${W}" y1="${y0}" y2="${y0}" stroke="#98a2b3" stroke-width="1" stroke-dasharray="3 3"/>${bars}
+    <path class="harea" d="M${pts[0].split(",")[0]},${y0} L${pts.join(" L")} L${pts[pts.length - 1].split(",")[0]},${y0} Z" fill="url(#hg)" pointer-events="none"/>
+    <path class="hline" pathLength="1" stroke-dasharray="1" d="M${pts.join(" L")}" fill="none" stroke="#2b6cf6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" pointer-events="none"/></svg>`;
+}
+function hInfo(){
+  const el = $("#hinfo"); if(!el || !HD) return;
+  const p = HD.find(x => x.d === selH); if(!p) return;
+  el.innerHTML = `<div class="bhead"><span>${dLabel(p.d)}</span><small>${p.s || p.e ? (p.p >= 0 ? "foydali kun" : "zararli kun") : "yozuv yo'q"}</small></div>
+    <div class="binfo"><div><small>Savdo</small><b class="green">${p.s ? "+" + fmt(p.s) : "—"}</b></div><div><small>Do'kon xarajati</small><b class="redt">${p.e ? "−" + fmt(p.e) : "—"}</b></div><div><small>Foyda</small><b style="color:${p.p < 0 ? "var(--red)" : "#067647"}">${p.s || p.e ? fmt(p.p) : "—"}</b></div></div>`;
+}
+function pickH(d){
+  selH = d;
+  document.querySelectorAll(".hbar").forEach(r => { const neg = r.classList.contains("neg"), on = r.dataset.d === d; r.setAttribute("fill", on ? (neg ? "#b42318" : "#067647") : (neg ? "#f04438" : "#12b76a")); });
+  hInfo(); try{ tgw?.HapticFeedback?.selectionChanged(); }catch(e){}
 }
 
 /* ---------- Ro'yxat ---------- */
@@ -382,7 +572,7 @@ function drawDebts(){
   PL = list;
   let h = header("Qarz daftari", P.length + " kishi");
   h += `<div class="dtiles"><div class="dtile in"><small>${ic("arrow-down-left-bold", 15)} Menga qarzdor</small><b>${fmt(tin)}</b><small>${inn.length} kishi</small></div><div class="dtile out"><small>${ic("arrow-up-right-bold", 15)} Mening qarzim</small><b>${fmt(tout)}</b><small>${out.length} kishi</small></div></div>`;
-  h += `<div class="seg ${dtab === "out" ? "out" : dtab === "in" ? "in" : ""}">${[["in","Menga",inn.length],["out","Men",out.length],["done","Yopilgan",done.length]].map(([k, l, n]) => `<button class="${dtab===k?"on":""}" onclick="dtab='${k}';draw()">${l} · ${n}</button>`).join("")}</div>`;
+  h += `<div class="seg ${dtab === "out" ? "out" : dtab === "in" ? "in" : ""}">${[["in","Menga",inn.length],["out","Men",out.length],["done","Yopilgan",done.length]].map(([k, l, n]) => `<button class="${dtab===k?"on":""}" onclick="dtab='${k}';ANIM=true;draw()">${l} · ${n}</button>`).join("")}</div>`;
   if(P.length > 5) h += `<label class="field">${ic("magnifer-linear", 20)}<input id="dq" placeholder="Ism bo'yicha qidirish" value="${esc(dq)}" oninput="dq=this.value;clearTimeout(window.qT);window.qT=setTimeout(()=>{draw();const i=$('#dq');i.focus();i.setSelectionRange(i.value.length,i.value.length)},300)"></label>`;
   h += `<button class="btn b full" style="margin-bottom:12px" onclick="openDebtForm()">${ic("add-circle-bold", 20)} Qarz yozish</button>`;
   h += list.length ? list.map((p, i) => { const pct = p.debt ? Math.min(100, p.paid / p.debt * 100) : 0, col = p.dir === "in" ? "var(--ok)" : "var(--red)";
@@ -480,7 +670,7 @@ function closeModal(){ $("#modal")?.remove(); }
 function savedMsg(j){
   const a = (j.saved || []).map(r => `${isS(r) ? "💰" : "✅"} ${esc(r.firm || r.note || cat(r.scope, r.cat)[1])} <b>${fmt(r.amount)}</b>`);
   const b = (j.debts || []).map(d => `📒 ${esc(d.person)} <b>${d.kind === "pay" ? "−" : "+"}${fmt(d.amount)}</b>`);
-  return a.length || b.length ? [...a, ...b].join(" · ") : "🤔 " + esc(j.reply || "Tushunmadim");
+  return a.length || b.length ? `<span class="ok">${ic("check-circle-bold", 16)}</span> ` + [...a, ...b].join(" · ") : "🤔 " + esc(j.reply || "Tushunmadim");
 }
 function afterSave(j){
   if(j.saved?.length){ ROWS = [...j.saved, ...ROWS]; const d = j.saved[0].spent_on; if(d !== today() && per === "today") per = d === dAgo(1) ? "yday" : d >= dAgo(6) ? "week" : "month"; }
