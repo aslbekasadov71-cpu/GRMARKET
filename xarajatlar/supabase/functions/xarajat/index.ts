@@ -225,12 +225,12 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
 
 /* ---------------- Gemini: band bo'lsa boshqa modelga o'tadi ---------------- */
 const G_MODELS = [...new Set([GEMINI_MODEL, "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"])];
-async function gemini(body: Row): Promise<string> {
+async function gemini(body: Row, models: string[] = G_MODELS, think = 0): Promise<string> {
   let last = "";
-  for (const model of G_MODELS) {
+  for (const model of models) {
     for (let k = 0; k < 2; k++) {
-      // 2.5-flash sukut bo'yicha "o'ylaydi" (sekin) — xarajat yozish uchun kerak emas
-      const b = /^gemini-2\.5-flash$/.test(model) ? { ...body, generationConfig: { ...(body.generationConfig ?? {}), thinkingConfig: { thinkingBudget: 0 } } } : body;
+      // 2.5-flash sukut bo'yicha "o'ylaydi" (sekin) — xarajat yozish uchun kerak emas; ustoz uchun biroz o'ylaydi
+      const b = /^gemini-2\.5-flash$/.test(model) ? { ...body, generationConfig: { ...(body.generationConfig ?? {}), thinkingConfig: { thinkingBudget: think } } } : body;
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b),
       });
@@ -783,13 +783,15 @@ async function tg(method: string, body: Row) {
   if (!j.ok && !String(j.description ?? "").includes("not modified")) console.error(method, j.description);
   return j;
 }
-const appUrl = () => CFG?.app_token ? `${WEB_URL}/#t=${CFG.app_token}` : WEB_URL;
+const APP_V = "13"; // ilova yangilanganda Telegram eski nusxani ko'rsatmasligi uchun
+const appUrl = () => CFG?.app_token ? `${WEB_URL}/?v=${APP_V}#t=${CFG.app_token}` : `${WEB_URL}/?v=${APP_V}`;
 const B = {
-  today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot", holat: "📈 Do'kon holati",
+  today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot", holat: "📈 Do'kon holati", ustoz: "🧑‍🏫 Ustoz", rev: "📦 Revizya",
 };
 const mainKb = () => ({
   keyboard: [
     [{ text: B.today }, { text: B.report }, { text: B.holat }],
+    [{ text: B.ustoz }, { text: B.rev }],
     [{ text: B.debts }, { text: B.pdf }],
     [{ text: B.app, web_app: { url: appUrl() } }, { text: B.help }],
   ],
@@ -1124,7 +1126,8 @@ async function healthReport(range = "month") {
 }
 const holatKb = (cur: string) => ({ inline_keyboard: [
   [["week", "7 kun"], ["month", "Shu oy"], ["prev", "O'tgan oy"]].map(([k, l]) => ({ text: `${k === cur ? "✓ " : ""}${l}`, callback_data: `hl:${k}` })),
-  [{ text: "📄 PDF hisobot", callback_data: `pdf:${cur}` }, { text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
+  [{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }, { text: "📄 PDF hisobot", callback_data: `pdf:${cur}` }],
+  [{ text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
 ] });
 async function sendHealth(chat: number, range = "month", msg?: Row) {
   const { text, chart } = await healthReport(range);
@@ -1137,6 +1140,148 @@ async function sendHealth(chat: number, range = "month", msg?: Row) {
     await tg("sendPhoto", { chat_id: chat, photo: chart });
   }
   await send(chat, text, kb);
+}
+
+/* --- 📦 Revizya: tovar qoldig'i va kassa --- */
+const REV_GUIDE = `📦 <b>Revizya — qadam-baqadam</b> <i>(ustoz yo'riqnomasi)</i>
+
+<b>1. Savdoni to'xtating.</b> Revizya ertalab ochilishdan oldin yoki kechqurun yopilgandan keyin qilinadi — sanash paytida tovar kirib-chiqmasin.
+<b>2. Kassani sanang.</b> Naqd pul + terminal/karta tushumi. Bu — <i>kassa qoldig'i</i>.
+<b>3. Har bir tovarni sanang.</b> Nomi · soni · <b>KIRIM narxi</b> (firmadan olgan narxingiz). Sotuv narxi bilan emas! Buxgalteriyada qoldiq <i>tannarx</i> bo'yicha hisoblanadi.
+<b>4. Yaroqsizini ajrating.</b> Muddati o'tgan, singan, buzilgan tovar — alohida ro'yxat. Bu <i>hisobdan chiqarish</i> (spisaniye) — zarar sifatida yoziladi.
+<b>5. Jamini hisoblang.</b> Tovar qoldig'i = Σ (soni × kirim narxi).
+<b>6. Qarzlarni tekshiring.</b> Kim sizdan nasiya olgan va siz firmalarga qancha qarzsiz — 📒 Qarzlar bo'limi bilan solishtiring.
+<b>7. Natijani yozing</b> — botga shunday yuboring:
+<code>revizya: tovar 45 mln, kassa 3 mln</code>
+
+🧮 <b>Nega bu muhim?</b> Tovar xaridi hali zarar emas — sotilmagan tovar polkada pul bo'lib turadi. Haqiqiy foyda ikki revizya orasida chiqadi:
+<b>Sotilgan tovar tannarxi</b> = oldingi qoldiq + xaridlar − hozirgi qoldiq
+<b>Yalpi foyda</b> = savdo − sotilgan tovar tannarxi
+<b>Sof foyda</b> = yalpi foyda − do'kon xarajatlari (ijara, oylik, yo'l…)
+
+📅 Har oy <b>bir xil kunda</b> revizya qiling — shunda oyma-oy solishtirish aniq bo'ladi.`;
+const isRevizya = (t: string) => /^\s*(revizya|reviziya|reviziy|ревизия|qoldiq)\b/i.test(t);
+function parseRevizya(t: string) {
+  let stock = 0, cash = 0;
+  for (const seg of t.replace(/^\s*\S+\s*:?/, "").split(/[,;\n]|\bva\b/i)) {
+    const v = parseSum(seg);
+    if (!v) continue;
+    if (/kassa|naqd|pul|karta|terminal|касса/i.test(seg)) cash += v;
+    else stock += v;
+  }
+  return { stock, cash };
+}
+async function revizyaCalc(cur: Row) {
+  const { data: prevs } = await db.from("xr_revizya").select("*").lt("done_on", cur.done_on).order("done_on", { ascending: false }).limit(1);
+  const p = prevs?.[0];
+  let x = `📦 <b>Revizya yozildi</b> · ${dateUz(cur.done_on)}\n🏬 Tovar qoldig'i: <b>${som(cur.stock)}</b>\n💵 Kassa: <b>${som(cur.cash)}</b>\n`;
+  if (!p) {
+    x += `\n🧑‍🏫 <b>Ustoz:</b> bu — <b>boshlang'ich nuqta</b>. Endi har kungi savdo va xaridlarni yozib boring. Keyingi revizyada (masalan, oy oxirida) bot <b>haqiqiy foydani</b> hisoblab beradi:\n<i>tannarx = ${short(cur.stock)} + xaridlar − yangi qoldiq</i>`;
+    return { text: x, p: null };
+  }
+  const { data } = await db.from("xr_expenses").select("kind,scope,cat,amount,spent_on").gt("spent_on", p.done_on).lte("spent_on", cur.done_on).limit(10000);
+  const rows = data ?? [];
+  const sales = total(rows.filter((r) => r.kind === "savdo"));
+  const buy = total(rows.filter((r) => r.kind !== "savdo" && r.scope === "dokon" && (r.cat === "tovar" || r.cat === "firma")));
+  const opex = total(rows.filter((r) => r.kind !== "savdo" && r.scope === "dokon" && r.cat !== "tovar" && r.cat !== "firma"));
+  const other = total(rows.filter((r) => r.kind !== "savdo" && r.scope !== "dokon"));
+  const cogs = Number(p.stock) + buy - Number(cur.stock);
+  const gross = sales - cogs, net = gross - opex;
+  const days = Math.max(1, Math.round((Date.parse(cur.done_on) - Date.parse(p.done_on)) / 864e5));
+  x += `\n📊 <b>${dateUz(p.done_on)} → ${dateUz(cur.done_on)}</b> (${days} kun)\n`;
+  x += `Oldingi qoldiq ${fmt(p.stock)} + xaridlar ${fmt(buy)} − hozirgi ${fmt(cur.stock)}\n= <b>Sotilgan tovar tannarxi: ${som(cogs)}</b>\n\n`;
+  x += `💰 Savdo: <b>${som(sales)}</b>\n${gross >= 0 ? "🟢" : "🔴"} Yalpi foyda: <b>${som(gross)}</b>${sales ? ` (marja ${Math.round((gross / sales) * 100)}%)` : ""}\n`;
+  if (cogs > 0) x += `🏷 O'rtacha ustama: <b>${Math.round((gross / cogs) * 100)}%</b>\n`;
+  x += `🏪 Do'kon xarajatlari: −${fmt(opex)}\n${net >= 0 ? "✅" : "🔻"} <b>Sof foyda: ${som(net)}</b>\n`;
+  const expCash = Number(p.cash) + sales - buy - opex - other;
+  const diff = Number(cur.cash) - expCash;
+  x += `\n💵 Kassa kutilgan: ${fmt(expCash)} · bor: ${fmt(cur.cash)} → ${Math.abs(diff) < 1000 ? "✅ to'g'ri" : diff < 0 ? `⚠️ <b>kamomad ${som(-diff)}</b>` : `ortiqcha ${som(diff)}`}\n`;
+  x += `<i>(Kassa hisobi taxminiy: hamma kirim-chiqim yozilgan bo'lsagina aniq chiqadi)</i>`;
+  if (cogs < 0) x += `\n⚠️ Tannarx manfiy chiqdi — demak, ba'zi xaridlar yozilmagan yoki qoldiq noto'g'ri sanalgan.`;
+  else if (sales && gross / sales < 0.08) x += `\n⚠️ Marja juda past (8% dan kam) — narxlarni yoki yo'qotishlarni tekshiring.`;
+  return { text: x, p };
+}
+async function saveRevizya(stock: number, cash: number, raw: string | null, note: string | null = null) {
+  const { data, error } = await db.from("xr_revizya").insert({ done_on: today(), stock, cash, raw, note }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/* --- 🧑‍🏫 Ustoz-buxgalter --- */
+const U_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-lite-latest"];
+const USTOZ = `Sen — 20 yillik tajribaga ega bosh buxgalter va kichik savdo (oziq-ovqat, mayda chakana do'kon) bo'yicha moliyaviy maslahatchisan. O'zbekistonda ishlaysan. Foydalanuvchi — do'kon egasi, sening shogirding. U do'konini "tiriltirmoqchi". Ustoz kabi gapir: samimiy, lekin aniq, talabchan va amaliy.
+
+QOIDALAR:
+1. Faqat berilgan MA'LUMOTLAR dagi raqamlarga tayan. Raqam o'ylab topma. Ma'lumot yetishmasa — buni ochiq ayt va uni qanday yig'ishni o'rgat.
+2. Har bir fikrda: (a) nima uchun — qisqa tushuntirish; atama ishlatsang oddiy so'z bilan izohla (masalan: marja, ustama/natsenka, tannarx, aylanma mablag', pul oqimi, revizya, kamomad, hisobdan chiqarish); (b) foydalanuvchining o'z raqamlari bilan hisob; (c) aniq harakat.
+3. Asosiy haqiqat: tovar xaridi darhol zarar EMAS — sotilmagan tovar polkada pul bo'lib turadi. Haqiqiy foyda = Savdo − Sotilgan tovar tannarxi − Do'kon xarajatlari. Sotilgan tovar tannarxi = boshlang'ich qoldiq + xaridlar − oxirgi qoldiq (revizya orqali). Agar revizya bo'lmasa, "Savdo − do'kon xarajati" faqat pul oqimini ko'rsatishini tushuntir.
+4. Agar savdo hamma kunlar uchun yozilmagan bo'lsa — xulosalar ishonchsiz ekanini birinchi navbatda ayt.
+5. Kerak bo'lsa o'rgat: shaxsiy pulni do'kon kassasidan ajratish (o'ziga oylik belgilash), kunlik kassa daftari, nasiyaga chegara va muddat, firmaga qarzni rejalashtirish, tez va sekin sotiladigan tovar (ABC tahlil), yaroqlilik muddati nazorati, o'g'irlik/yo'qotishni kamaytirish.
+6. Soliq stavkalari, qonun moddalari va jarimalar haqida aniq raqam AYTMA — "soliq inspeksiyasi yoki litsenziyali buxgalter bilan aniqlang (my.soliq.uz)" deb yo'naltir.
+7. Format Telegram uchun: qisqa bandlar, bo'lim sarlavhalarini **qalin** qil, ro'yxat uchun "•" ishlat. Jadval, # belgisi, havola ishlatma. Javob o'zbek lotin yozuvida, sodda tilda.`;
+async function ustozContext() {
+  const t = today(), ms = monthStart();
+  const [{ data }, drs, { data: rv }] = await Promise.all([
+    db.from("xr_expenses").select("kind,scope,cat,amount,spent_on,note,firm").gte("spent_on", dAgo(59)).limit(10000),
+    debtRows(),
+    db.from("xr_revizya").select("*").order("done_on", { ascending: false }).limit(6),
+  ]);
+  const rows = data ?? [];
+  const m = calcHealth(rows, ms, t), w1 = calcHealth(rows, dAgo(6), t), w0 = calcHealth(rows, dAgo(13), dAgo(7)), d30 = calcHealth(rows, dAgo(29), t);
+  const by: Record<string, number> = {};
+  rows.filter((r) => r.spent_on >= dAgo(29) && r.kind !== "savdo").forEach((r) => { const k = `${SN[r.scope] ?? r.scope} / ${CATS[r.scope]?.[r.cat]?.[1] ?? r.cat}`; by[k] = (by[k] ?? 0) + Number(r.amount); });
+  const firms: Record<string, number> = {};
+  rows.filter((r) => r.spent_on >= dAgo(29) && r.firm).forEach((r) => { firms[r.firm] = (firms[r.firm] ?? 0) + Number(r.amount); });
+  const ppl = debtPeople(drs).filter((p) => Math.round(p.bal) !== 0);
+  const L: string[] = [];
+  L.push(`Bugun: ${t}. Oy boshidan ${m.n} kun o'tdi.`);
+  L.push(`SHU OY: savdo ${fmt(m.sv)}; do'kon xarajati ${fmt(m.shop)}; shaxsiy ${fmt(m.me)}; kommunal va soliq ${fmt(m.kom)}; savdo − do'kon xarajati = ${fmt(m.foyda)}; qo'lda qoldi ${fmt(m.qoldi)}.`);
+  L.push(`Savdo yozilgan kunlar: ${m.salesDays} / ${m.n} (yozilmagan: ${m.n - m.salesDays}).`);
+  L.push(`OXIRGI 30 KUN: savdo ${fmt(d30.sv)}, do'kon xarajati ${fmt(d30.shop)}, shaxsiy ${fmt(d30.me)}, kommunal ${fmt(d30.kom)}, savdo yozilgan kun ${d30.salesDays}/30.`);
+  L.push(`OXIRGI 7 KUN: savdo ${fmt(w1.sv)}, do'kon xarajati ${fmt(w1.shop)}. OLDINGI 7 KUN: savdo ${fmt(w0.sv)}, do'kon xarajati ${fmt(w0.shop)}.`);
+  L.push(`XARAJAT TURLARI (30 kun): ` + (Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmt(v)}`).join("; ") || "yo'q"));
+  if (Object.keys(firms).length) L.push(`FIRMALARGA TO'LOV (30 kun): ` + Object.entries(firms).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmt(v)}`).join("; "));
+  L.push(`QARZLAR: ` + (ppl.length ? ppl.map((p) => `${p.name} — ${p.dir === "in" ? "menga qarzdor" : "men qarzdorman"} ${fmt(p.bal)}`).join("; ") : "yo'q"));
+  L.push(`REVIZYALAR: ` + ((rv ?? []).length ? (rv ?? []).map((r: Row) => `${r.done_on}: tovar qoldig'i ${fmt(r.stock)}, kassa ${fmt(r.cash)}`).join("; ") : "hali bitta ham revizya qilinmagan"));
+  return L.join("\n");
+}
+const tgFormat = (s: string) => esc(s.slice(0, 3500).replace(/^#+\s*/gm, "")).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^\s*[*-]\s+/gm, "• ").replace(/\*(?!\s)([^*\n]+?)\*/g, "<i>$1</i>");
+async function ustoz(question = ""): Promise<string> {
+  await cfg();
+  if (!GEMINI_KEY) throw new Error("Gemini kaliti yo'q");
+  const ctx = await ustozContext();
+  const task = question
+    ? `Shogirdingning savoli: "${question.slice(0, 800)}"\nShu savolga ustoz sifatida, uning raqamlariga tayanib javob ber. 1500 belgidan oshirma. Oxirida 1-2 ta aniq qadam yoz.`
+    : `Do'konni to'liq tahlil qil, xuddi tajribali buxgalter auditdan keyin egasiga tushuntirgandek. Tuzilma:\n**Tashxis** — do'kon hozir qanday ahvolda (2-3 gap, ma'lumot to'liqligini ham ayt)\n**Raqamlar nima deydi** — 3-5 ta asosiy topilma, har biri hisob bilan\n**Bugun o'rganadigan qoidang** — bitta muhim buxgalteriya bilimi, misol bilan\n**Revizya** — bugun revizya qilayotgan bo'lsa nimaga e'tibor berish kerak (shu do'kon raqamlariga bog'lab)\n**Bugungi 3 ta vazifa** — aniq, o'lchanadigan\n2800 belgidan oshirma.`;
+  const txt = await gemini({
+    system_instruction: { parts: [{ text: USTOZ }] },
+    contents: [{ role: "user", parts: [{ text: `MA'LUMOTLAR:\n${ctx}\n\nVAZIFA:\n${task}` }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+  }, U_MODELS, 512);
+  return txt.trim();
+}
+const ustozKb = () => ({ inline_keyboard: [
+  [{ text: "🔄 Yangi tahlil", callback_data: "us:" }, { text: "📦 Revizya yo'riqnomasi", callback_data: "rv:" }],
+  [{ text: "📈 Do'kon holati", callback_data: "hl:month" }],
+] });
+async function sendUstoz(chat: number, question = "") {
+  const wait = await tg("sendMessage", { chat_id: chat, text: "🧑‍🏫 <i>Ustoz raqamlaringizni ko'rib chiqyapti…</i>", parse_mode: "HTML" });
+  await tg("sendChatAction", { chat_id: chat, action: "typing" });
+  try {
+    const a = await ustoz(question);
+    const text = `🧑‍🏫 <b>Ustoz-buxgalter</b>${question ? `\n<i>«${esc(question.slice(0, 120))}»</i>` : ""}\n\n${tgFormat(a)}\n\n<i>Savol bering: «ustoz, …» deb yozing</i>`;
+    const r = await tg("editMessageText", { chat_id: chat, message_id: wait.result?.message_id, text, parse_mode: "HTML", reply_markup: ustozKb() });
+    if (!r.ok) await send(chat, text, ustozKb());
+  } catch (e) {
+    console.error(e);
+    await tg("editMessageText", { chat_id: chat, message_id: wait.result?.message_id, text: "⚠️ Ustoz hozir javob bera olmadi: " + esc((e as Error).message) + "\nBirozdan keyin qayta urinib ko'ring." });
+  }
+}
+async function sendRevizyaGuide(chat: number) {
+  const { data: rv } = await db.from("xr_revizya").select("*").order("done_on", { ascending: false }).limit(3);
+  let t = REV_GUIDE;
+  if (rv?.length) t += `\n\n🗂 <b>Oxirgi revizyalar:</b>\n` + rv.map((r: Row) => `${dateUz(r.done_on)} — tovar ${fmt(r.stock)} · kassa ${fmt(r.cash)}`).join("\n");
+  await send(chat, t, { inline_keyboard: [[{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }]] });
 }
 
 /* --- har kuni kechqurun avtomatik hisobot --- */
@@ -1184,12 +1329,17 @@ Noto'g'ri bo'limga tushsa, yozuv ostidagi «→» tugmasi bilan ko'chiring yoki 
 📈 <b>Do'kon holati</b> — foydadami, zarardami, qayerga ketyapti: /holat
 Yoki shunchaki so'rang: <i>«do'kon foydadami?»</i>, <i>«qayerga ketyapmiz?»</i>
 
+🧑‍🏫 <b>Ustoz-buxgalter</b> — raqamlaringizni tahlil qilib o'rgatadi: /ustoz
+Savol bering: <i>«ustoz, narxni qanday qo'yay?»</i>
+
+📦 <b>Revizya</b> — yo'riqnoma: /revizya · natija: <i>«revizya: tovar 45 mln, kassa 3 mln»</i>
+
 📄 <b>PDF hisobot</b> — barcha statistika va yozuvlar bitta faylda: /pdf
 Bir xil xabar ikki marta kelsa, bot so'rab oladi — ikki marta yozilmaydi.
 
 🌙 Har kuni soat 21:00 da kun yakuni keladi (o'chirish: /kechki).
 
-📅 Bugun · 📊 Hisobot · 📈 Holat · 📒 Qarzlar · 📄 PDF · 📱 Ilova`;
+📅 Bugun · 📊 Hisobot · 📈 Holat · 🧑‍🏫 Ustoz · 📦 Revizya · 📒 Qarzlar · 📄 PDF`;
 
 async function onTg(upd: Row) {
   const c = await cfg();
@@ -1236,6 +1386,16 @@ async function onTg(upd: Row) {
       return;
     }
     if (act === "rd") { await ack(); await send(chat, await reportText(arg)); return; }
+    if (act === "us") { await ack("🧑‍🏫 Ustoz o'ylayapti…"); await sendUstoz(chat); return; }
+    if (act === "rv") { await ack(); await sendRevizyaGuide(chat); return; }
+    if (act === "rvd") {
+      const { data: rr } = await db.from("xr_revizya").select("*").eq("id", Number(arg)).maybeSingle();
+      if (!rr) { await ack("Allaqachon o'chirilgan"); return; }
+      await db.from("xr_revizya").delete().eq("id", rr.id);
+      await ack("🗑 O'chirildi");
+      await send(chat, `🗑 Revizya o'chirildi: ${dateUz(rr.done_on)} · tovar ${fmt(rr.stock)}`);
+      return;
+    }
     if (act === "hl") { await ack(); await sendHealth(chat, ["week", "month", "prev"].includes(arg) ? arg : "month", (msg?.caption ?? msg?.text ?? "").startsWith("📈") ? msg : undefined); return; }
     if (act === "pdf") {
       await ack("📄 PDF tayyorlanmoqda…");
@@ -1310,6 +1470,8 @@ async function onTg(upd: Row) {
     },
     "/kunyakuni": () => evening(chat),
     [B.holat]: () => sendHealth(chat), "/holat": () => sendHealth(chat),
+    [B.ustoz]: () => sendUstoz(chat), "/ustoz": () => sendUstoz(chat),
+    [B.rev]: () => sendRevizyaGuide(chat), "/revizya": () => sendRevizyaGuide(chat),
     [B.pdf]: () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/pdf": () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/chiqish": async () => {
@@ -1326,8 +1488,23 @@ async function onTg(upd: Row) {
   const voice = m.voice ?? m.audio;
   if (voice) { await doVoice(chat, voice.file_id, voice.mime_type || "audio/ogg", false, voice.file_unique_id ?? ""); return; }
   if (!text) { await send(chat, "Xarajat, savdo yoki qarzni yozing yoki 🎤 ovozli xabar yuboring"); return; }
+  // «ustoz, …» — savol ustozga
+  const uq = text.match(/^\s*(ustoz|buxgalter|домла|domla)[\s,:!-]*(.*)$/is);
+  if (uq) { await sendUstoz(chat, uq[2].trim()); return; }
+  // revizya natijasi: «revizya: tovar 45 mln, kassa 3 mln»
+  if (isRevizya(text) && /\d/.test(text)) {
+    const { stock, cash } = parseRevizya(text);
+    if (!stock && !cash) { await send(chat, "Raqamni topmadim. Masalan: <code>revizya: tovar 45 mln, kassa 3 mln</code>"); return; }
+    const cur = await saveRevizya(stock, cash, text);
+    const { text: rt } = await revizyaCalc(cur);
+    await send(chat, rt, { inline_keyboard: [[{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }, { text: "🗑 O'chirish", callback_data: `rvd:${cur.id}` }]] });
+    return;
+  }
+  if (isRevizya(text)) { await sendRevizyaGuide(chat); return; }
   // savol: «do'kon foydadami?», «zarardamizmi», «qayerga ketyapti» — summa yo'q bo'lsa holatni ko'rsatamiz
   if (isHealthQ(text)) { await sendHealth(chat, /o'tgan oy|otgan oy/i.test(text) ? "prev" : /hafta|7 kun/i.test(text) ? "week" : "month"); return; }
+  // raqamsiz savol (?) — ustozga
+  if (/\?\s*$/.test(text) && !/\d/.test(text)) { await sendUstoz(chat, text); return; }
   await doText(chat, text);
 }
 
@@ -1387,6 +1564,25 @@ async function onApi(req: Request) {
       if (error) throw error;
       return json({ debt: data });
     }
+    case "ustoz": {
+      const q = String(b.q ?? "").trim();
+      return json({ text: await ustoz(q) });
+    }
+    case "revizya_list": {
+      const { data } = await db.from("xr_revizya").select("*").order("done_on", { ascending: false }).limit(24);
+      return json({ rows: data ?? [] });
+    }
+    case "revizya_add": {
+      const stock = Math.round(Number(b.stock) || 0), cash = Math.round(Number(b.cash) || 0);
+      if (stock <= 0) return json({ error: "Tovar qoldig'ini kiriting" }, 400);
+      const cur = await saveRevizya(stock, cash, null, String(b.note ?? "").slice(0, 200) || null);
+      const { text } = await revizyaCalc(cur);
+      return json({ row: cur, text });
+    }
+    case "revizya_del": {
+      await db.from("xr_revizya").delete().eq("id", Number(b.id));
+      return json({ ok: true });
+    }
     case "pdf_tg": {
       const c = await cfg();
       await sendPdf(Number(c.owner_id), String(b.range ?? "month"));
@@ -1430,6 +1626,8 @@ Deno.serve(async (req) => {
         { command: "oy", description: "Shu oy" },
         { command: "qarzlar", description: "Qarz daftari" },
         { command: "holat", description: "Do'kon holati: foyda yoki zarar" },
+        { command: "ustoz", description: "Ustoz-buxgalter tahlili va maslahati" },
+        { command: "revizya", description: "Revizya yo'riqnomasi va natijani yozish" },
         { command: "kunyakuni", description: "Kun yakuni hozir" },
         { command: "pdf", description: "PDF hisobot yuklab olish" },
         { command: "kechki", description: "21:00 dagi hisobotni yoqish/o'chirish" },

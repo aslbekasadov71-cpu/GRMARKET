@@ -157,7 +157,40 @@ nav button.on{color:var(--b)}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,-18px) scale(.9)}}
 @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 @keyframes climb{0%{transform:translate(-3px,3px);opacity:.5}50%{transform:translate(2px,-2px);opacity:1}100%{transform:translate(-3px,3px);opacity:.5}}
-#body.anim>*{animation:rise .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms)}
+#body.anim>*{animation:rise .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*60ms)}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(-5deg)}}
+@keyframes shine{0%{transform:translateX(-120%)}55%,100%{transform:translateX(120%)}}
+@keyframes pill{from{transform:scale(.3);opacity:0}}
+@keyframes sk{to{background-position:-200% 0}}
+@keyframes breath{0%,100%{box-shadow:0 0 0 0 rgba(43,108,246,.38)}50%{box-shadow:0 0 0 11px rgba(43,108,246,0)}}
+@keyframes twinkle{0%,100%{opacity:.25;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1.15) rotate(25deg)}}
+@keyframes blink{0%,80%,100%{opacity:.2;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px)}}
+.ico{animation:bob 3.6s ease-in-out infinite}
+.card:nth-child(3n+1) .ico{animation-delay:-1.2s}.card:nth-child(3n+2) .ico{animation-delay:-2.4s}
+.shine{position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.28) 46%,transparent 62%);animation:shine 3.8s ease-in-out infinite 1.2s;z-index:1}
+nav button{position:relative;z-index:0}
+nav button.on::before{content:"";position:absolute;top:3px;left:50%;width:58px;height:32px;margin-left:-29px;border-radius:99px;background:var(--bl);z-index:-1;animation:pill .4s cubic-bezier(.2,.8,.2,1)}
+.skel{height:120px;border-radius:20px;margin-bottom:10px;background:linear-gradient(90deg,#e6eaf0 25%,#f6f8fb 50%,#e6eaf0 75%);background-size:200% 100%;animation:sk 1.2s linear infinite}
+.mic:not(.rec){animation:breath 2.8s ease-in-out infinite}
+.rb:active,.mic:active,.pill:active{transform:scale(.9)}
+.sway{animation:wiggle 3.5s ease-in-out infinite;display:grid}
+.spark{position:absolute;color:#fff;animation:twinkle 2.4s ease-in-out infinite;z-index:1}
+.uav{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#7a5af8,#9e77ed);color:#fff;display:grid;place-items:center;flex:none;animation:floaty 3s ease-in-out infinite;box-shadow:0 8px 20px rgba(122,90,248,.3)}
+.uav.thinking iconify-icon{animation:wiggle .9s ease-in-out infinite}
+.dots{display:inline-flex;gap:4px;margin-left:6px}.dots i{width:6px;height:6px;border-radius:50%;background:#7a5af8;animation:blink 1.2s infinite}.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+.uout{margin-top:12px;font-size:14.5px;line-height:1.55;animation:slideIn .5s ease-out}
+.uout b{color:#5925dc}
+.uout .ubox{background:#f9f5ff;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+details.guide{background:var(--bg);border-radius:14px;padding:10px 12px;margin:12px 0}
+details.guide summary{font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;list-style:none}
+details.guide summary::-webkit-details-marker{display:none}
+details.guide ol{margin:10px 0 0;padding-left:20px;font-size:14px;line-height:1.5}
+details.guide li{margin-bottom:6px;animation:slideIn .4s ease-out both}
+.formula{background:#fff;border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13px;font-weight:700;color:#5925dc}
+.rvrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.rvrow .grow{flex:1;min-width:0}.rvrow button{background:none;border:0;color:var(--mute);cursor:pointer;padding:6px;display:grid}
+.rvres{background:var(--bg);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.55;margin-top:10px;animation:slideIn .5s ease-out}
 #body.anim .ico iconify-icon,#body.anim .av,#body.anim .stile small iconify-icon,#body.anim .frow .fi iconify-icon,#body.anim .tip iconify-icon{animation:pop .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms + 180ms)}
 #body.anim .pbar i{animation:growX .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms + 200ms);transform-origin:left}
 #body.anim .bcol i{animation:grow .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--j,0)*22ms + 160ms);transform-origin:bottom}
@@ -217,7 +250,6 @@ nav button iconify-icon{transition:transform .2s}nav button:active iconify-icon{
 .mini .ico{width:46px;height:46px}
 .mini .grow{flex:1;min-width:0}
 @media(min-width:900px){#app{max-width:720px}.slab{max-width:720px}}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -304,13 +336,13 @@ const inRange = r => inDates(r) && (scope === "all" || isS(r) || r.scope === sco
 async function load(){
   document.querySelectorAll(".pill.rf").forEach(b => b.classList.add("spinning"));
   try{
-    const j = await api("list", {from: mStart(-1) < dAgo(62) ? mStart(-1) : dAgo(62)});
-    ROWS = j.rows || []; DEBTS = j.debts || []; ANIM = true; draw();
+    const [j, rv] = await Promise.all([api("list", {from: mStart(-1) < dAgo(62) ? mStart(-1) : dAgo(62)}), api("revizya_list").catch(() => ({rows:[]}))]);
+    ROWS = j.rows || []; DEBTS = j.debts || []; REV = rv.rows || []; ANIM = true; draw();
   }catch(e){ if(T && $("#body")) $("#body").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone", 42)}<br>${esc(e.message)}</div>`; }
 }
 
 function shell(){
-  $("#app").innerHTML = `<div id="body"><div class="empty"><span class="spin"></span></div></div>`;
+  $("#app").innerHTML = `<div id="body"><div class="skel" style="height:60px;width:60%"></div><div class="skel" style="height:44px"></div><div class="skel" style="height:150px"></div><div class="skel" style="height:90px"></div><div class="skel" style="height:90px"></div></div>`;
   if(!$(".slab")){
     const s = document.createElement("div"); s.className = "slab";
     s.innerHTML = `<div class="hint" id="hint">Yozing yoki ayting: <b>«svetga 250 ming»</b>, <b>«savdo 3 mln»</b>, <b>«Ali 50 ming nasiya oldi»</b></div>
@@ -371,7 +403,7 @@ function drawHome(){
   const sv = scope === "all" || scope === "dokon" ? sum(ROWS.filter(inDates).filter(isS)) : 0, left = sv - tot;
   const pl = PER.find(p => p[0] === per)[1], d = new Date();
   let h = header("Xarajatlar", d.getDate() + "-" + MON[d.getMonth()] + ", " + d.getFullYear()) + perChips() + scopeSeg();
-  h += `<div class="stat"><span class="sicon">${ic("wallet-money-bold-duotone", 34)}</span><small>${pl} · ${rs.length} ta xarajat${scope !== "all" ? " · " + SC[scope].n : ""}</small><div class="big">${N_(tot)} so'm</div>
+  h += `<div class="stat"><i class="shine"></i><span class="sicon">${ic("wallet-money-bold-duotone", 34)}</span><small>${pl} · ${rs.length} ta xarajat${scope !== "all" ? " · " + SC[scope].n : ""}</small><div class="big">${N_(tot)} so'm</div>
     <div class="sp"><div><small>${ic("arrow-down-left-bold", 14)} Savdo</small><b>${N_(sv)}</b></div><div><small>${ic(left >= 0 ? "check-circle-bold" : "danger-triangle-bold", 14)} Qoldi</small><b>${N_(left)}</b></div></div></div>`;
   // 3 bo'lim: bosilsa filtr
   const allX = ROWS.filter(inDates).filter(r => !isS(r)), totX = sum(allX);
@@ -470,9 +502,9 @@ function drawHolat(){
   const H = health(a, b), ok = H.foyda >= 0, w1 = health(dAgo(6), today()), w0 = health(dAgo(13), dAgo(7));
   const pl = hper === "week" ? "Oxirgi 7 kun" : hper === "prev" ? MON[new Date(mStart(-1)).getMonth()] + " oyi" : MON[new Date().getMonth()] + " oyi · 1–" + new Date().getDate();
   let h = header("Do'kon holati", "Foydami, zararmi — sodda hisob") + `<div class="chips">${[["week","7 kun"],["month","Shu oy"],["prev","O'tgan oy"]].map(([k, l]) => `<button class="chip ${hper===k?"on":""}" onclick="hper='${k}';ANIM=true;draw()">${l}</button>`).join("")}</div>`;
-  if(!H.sv && !H.shop){ $("#body").innerHTML = h + `<div class="empty">${ic("graph-up-bold-duotone", 54)}<br><b style="color:var(--ink)">Bu davrda ma'lumot yo'q</b><br><small>Savdo va do'kon xarajatlarini yozing — holat shu yerda chiqadi</small></div>`; return; }
+  if(!H.sv && !H.shop){ $("#body").innerHTML = h + `<div class="empty">${ic("graph-up-bold-duotone", 54)}<br><b style="color:var(--ink)">Bu davrda ma'lumot yo'q</b><br><small>Savdo va do'kon xarajatlarini yozing — holat shu yerda chiqadi</small></div>` + ustozHtml() + revHtml(); return; }
   // 1) asosiy javob
-  h += `<div class="hero ${ok ? "ok" : "bad"}"><div class="hicon">${ic(ok ? "graph-up-bold-duotone" : "graph-down-bold-duotone", 34)}</div>
+  h += `<div class="hero ${ok ? "ok" : "bad"}"><i class="shine"></i>${ok ? `<span class="spark" style="right:86px;top:14px">${ic("stars-minimalistic-bold", 16)}</span><span class="spark" style="right:20px;bottom:18px;animation-delay:1.1s">${ic("stars-minimalistic-bold", 12)}</span>` : ""}<div class="hicon">${ic(ok ? "graph-up-bold-duotone" : "graph-down-bold-duotone", 34)}</div>
     <small>${pl}</small><h3>${ok ? "Do'kon foydada 👍" : "Do'kon zararda"}</h3>
     <div class="big">${ok ? "+" : "−"}${N_(Math.abs(H.foyda))} so'm</div>${H.sv ? `<span class="mg">${ok ? "Har 100 so'm savdodan " + Math.round(H.foyda / H.sv * 100) + " so'm foyda" : "Xarajat savdodan " + fmt(-H.foyda) + " so'm ko'p"}</span>` : ""}</div>`;
   // 2) hisob qanday chiqdi
@@ -510,8 +542,73 @@ function drawHolat(){
   if(myDebt > 0 && myDebt > Math.max(H.qoldi, 0) * 2) tips.push(["notebook-bold-duotone", `Qarzingiz (${fmt(myDebt)} so'm) qo'lda qolgan puldan ancha ko'p.`]);
   if(!tips.length && ok) tips.push(["cup-star-bold-duotone", "Yaxshi ketyapsiz! Shu tartibda davom eting 💪"]);
   h += `<h2><span>Maslahat</span></h2><div class="panel">${tips.slice(0, 4).map(([i, t]) => `<div class="tip"><div class="fi">${ic(i, 18)}</div><div>${esc(t)}</div></div>`).join("")}</div>`;
+  h += ustozHtml() + revHtml();
   $("#body").innerHTML = h;
   hInfo();
+}
+
+/* ---------- 🧑‍🏫 Ustoz-buxgalter ---------- */
+let UST = "", UQ = "", UBUSY = false, REV = [], REVRES = "";
+try{ UST = localStorage.getItem("xr_ust") || ""; UQ = localStorage.getItem("xr_ustq") || ""; }catch(e){}
+const fmtU = t => esc(t).replace(/^#+\s*/gm, "").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^\s*[*-]\s+/gm, "• ").replace(/\*(?!\s)(.+?)\*/g, "<i>$1</i>").replace(/\n/g, "<br>");
+function ustozHtml(){
+  return `<h2><span>Ustoz-buxgalter</span><span>20 yillik tajriba</span></h2><div class="panel" id="upanel">
+    <div class="row" style="gap:12px"><div class="uav ${UBUSY ? "thinking" : ""}">${ic("square-academic-cap-bold-duotone", 30)}</div><div style="flex:1;min-width:0"><b>Raqamlaringizni tahlil qilib, o'rgatadi</b><small>Tashxis · topilmalar · bugungi 3 vazifa</small></div></div>
+    <div id="uout">${UBUSY ? `<div class="uout"><span style="color:#7a5af8;font-weight:700">Ustoz raqamlaringizni ko'rib chiqyapti</span><span class="dots"><i></i><i></i><i></i></span></div>` : UST ? `<div class="uout">${UQ ? `<div class="ubox"><small>Savolingiz</small><b style="color:var(--ink)">${esc(UQ)}</b></div>` : ""}${fmtU(UST)}</div>` : ""}</div>
+    <button class="btn b full" style="margin-top:12px;background:linear-gradient(135deg,#7a5af8,#9e77ed);border:0" ${UBUSY ? "disabled" : ""} onclick="askUstoz()">${ic("magic-stick-3-bold-duotone", 20)} ${UST && !UQ ? "Yangi tahlil" : "To'liq tahlil qilish"}</button>
+    <div class="field" style="margin:10px 0 0">${ic("chat-round-dots-bold-duotone", 20)}<input id="uq" placeholder="Savol: narxni qanday qo'yay?" enterkeyhint="send" onkeydown="if(event.key==='Enter'&&this.value.trim())askUstoz(this.value.trim())"><button class="rb" style="width:34px;height:34px;background:#7a5af8" onclick="const v=$('#uq').value.trim();if(v)askUstoz(v)">${ic("plain-2-bold", 16)}</button></div></div>`;
+}
+async function askUstoz(q = ""){
+  if(UBUSY) return;
+  UBUSY = true; UQ = q; redrawUstoz();
+  try{ const j = await api("ustoz", {q}); UST = j.text || ""; try{ localStorage.setItem("xr_ust", UST); localStorage.setItem("xr_ustq", UQ); }catch(e){} }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
+  UBUSY = false; redrawUstoz();
+  try{ tgw?.HapticFeedback?.notificationOccurred("success"); }catch(e){}
+}
+function redrawUstoz(){ const p = $("#upanel"); if(!p) return; const d = document.createElement("div"); d.innerHTML = ustozHtml(); p.replaceWith(d.children[1]); }
+
+/* ---------- 📦 Revizya ---------- */
+function revHtml(){
+  const steps = [
+    ["Savdoni to'xtating", "ertalab ochishdan oldin yoki yopgandan keyin — sanash paytida tovar kirib-chiqmasin."],
+    ["Kassani sanang", "naqd pul + terminal/karta tushumi."],
+    ["Har bir tovarni sanang", "nomi · soni · <b>KIRIM narxi</b> (firmadan olgan narx). Sotuv narxi emas — qoldiq tannarx bo'yicha hisoblanadi."],
+    ["Yaroqsizini ajrating", "muddati o'tgan, singan tovar — alohida (hisobdan chiqarish, zarar)."],
+    ["Jamini hisoblang", "tovar qoldig'i = Σ (soni × kirim narxi)."],
+    ["Qarzlarni solishtiring", "nasiyalar va firmalarga qarz — Qarzlar bo'limi bilan."],
+    ["Natijani shu yerga yozing", "keyingi revizyada haqiqiy foyda chiqadi."]];
+  return `<h2><span>Revizya</span><span>${REV.length ? "oxirgisi: " + dLabel(REV[0].done_on) : "hali yo'q"}</span></h2><div class="panel">
+    <div class="row" style="gap:12px"><div class="ico" style="background:#fef0c7;color:#b54708"><span class="sway">${ic("box-bold-duotone", 26)}</span></div><div style="flex:1;min-width:0"><b>Bugun revizya qilyapsizmi?</b><small>Tovar qoldig'i + kassa → haqiqiy foyda</small></div></div>
+    <details class="guide"><summary>${ic("checklist-minimalistic-bold-duotone", 18)} Qadam-baqadam yo'riqnoma</summary><ol>${steps.map(([a, b], i) => `<li style="animation-delay:${i * 60}ms"><b>${a}</b> — ${b}</li>`).join("")}</ol>
+      <div class="formula">Sotilgan tovar tannarxi = oldingi qoldiq + xaridlar − hozirgi qoldiq<br>Yalpi foyda = savdo − tannarx</div></details>
+    <button class="btn full" onclick="openRev()">${ic("add-square-bold-duotone", 20)} Revizya natijasini yozish</button>
+    ${REVRES ? `<div class="rvres">${REVRES}</div>` : ""}
+    ${REV.slice(0, 6).map(r => `<div class="rvrow"><div class="ico" style="width:38px;height:38px;background:#fef0c7;color:#b54708">${ic("clipboard-check-bold-duotone", 20)}</div><div class="grow"><b>${dLabel(r.done_on)}</b><small>tovar ${fmt(r.stock)} · kassa ${fmt(r.cash)}</small></div><button onclick="delRev(${r.id})" aria-label="O'chirish">${ic("trash-bin-trash-linear", 20)}</button></div>`).join("")}</div>`;
+}
+function openRev(){
+  modal(`<div class="mh"><div><h1 style="font-size:22px">Revizya natijasi</h1><small>${dLabel(today())} · kirim narxida hisoblang</small></div><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
+  <label class="field">${ic("box-bold-duotone", 22)}<input inputmode="numeric" id="rvs" placeholder="Tovar qoldig'i (so'm)" oninput="const v=digits(this.value);this.value=v?fmt(v):''"></label>
+  <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" id="rvc" placeholder="Kassadagi pul (so'm)" oninput="const v=digits(this.value);this.value=v?fmt(v):''"></label>
+  <label class="field">${ic("pen-2-bold-duotone", 22)}<input id="rvn" placeholder="Izoh: yaroqsiz tovar va h.k. (ixtiyoriy)"></label>
+  <button class="btn b full" id="rvsave" onclick="saveRev()">${ic("check-circle-bold", 20)} Saqlash va hisoblash</button>`);
+  setTimeout(() => $("#rvs")?.focus(), 250);
+}
+async function saveRev(){
+  const stock = digits($("#rvs").value), cash = digits($("#rvc").value);
+  if(!stock) return toast("Tovar qoldig'ini kiriting", "danger-triangle-bold");
+  $("#rvsave").disabled = true;
+  try{
+    const j = await api("revizya_add", {stock, cash, note:$("#rvn").value});
+    REV = [j.row, ...REV.filter(r => r.id !== j.row.id)]; REVRES = (j.text || "").replace(/\n/g, "<br>");
+    closeModal(); toast("Revizya saqlandi"); ANIM = true; draw();
+    setTimeout(() => document.querySelector(".rvres")?.scrollIntoView({behavior:"smooth", block:"center"}), 400);
+  }catch(e){ $("#rvsave").disabled = false; toast(esc(e.message), "danger-triangle-bold"); }
+}
+async function delRev(id){
+  if(!confirm("Bu revizya o'chirilsinmi?")) return;
+  try{ await api("revizya_del", {id}); REV = REV.filter(r => r.id !== id); REVRES = ""; draw(); toast("O'chirildi"); }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
 }
 function hChart(per){
   const W = 320, Hh = 150, pad = 6, n = per.length, bw = (W - pad * 2) / n;
