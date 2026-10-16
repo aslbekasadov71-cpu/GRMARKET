@@ -226,7 +226,7 @@ async function claudeParse(text: string): Promise<{ items: Row[]; reply: string 
 /* ---------------- Gemini: band bo'lsa boshqa modelga o'tadi ---------------- */
 const G_MODELS = [...new Set([GEMINI_MODEL, "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"])];
 async function gemini(body: Row, models: string[] = G_MODELS, think = 0): Promise<string> {
-  let last = "";
+  let last = "", best = "";
   for (const model of models) {
     for (let k = 0; k < 2; k++) {
       // 2.5-flash sukut bo'yicha "o'ylaydi" (sekin) — xarajat yozish uchun kerak emas; ustoz uchun biroz o'ylaydi
@@ -235,7 +235,10 @@ async function gemini(body: Row, models: string[] = G_MODELS, think = 0): Promis
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b),
       });
       const j: Row = await r.json().catch(() => ({}));
-      if (r.ok) return (j.candidates?.[0]?.content?.parts ?? []).map((p: Row) => p.text ?? "").join("");
+      const out = (j.candidates?.[0]?.content?.parts ?? []).filter((p: Row) => !p.thought).map((p: Row) => p.text ?? "").join("");
+      const fr = j.candidates?.[0]?.finishReason;
+      if (r.ok && (fr !== "MAX_TOKENS" || out.length > 600 || models === G_MODELS)) return out;
+      if (r.ok) { if (out.length > best.length) best = out; last = `${model}: chala javob (${fr})`; console.error("Gemini", last); break; }
       last = `${model}: ${j?.error?.message ?? r.status}`;
       console.error("Gemini", last);
       if (r.status === 401 || r.status === 403 || /api.?key/i.test(String(j?.error?.message ?? ""))) throw new Error("Gemini kaliti: " + (j?.error?.message ?? r.status));
@@ -243,6 +246,7 @@ async function gemini(body: Row, models: string[] = G_MODELS, think = 0): Promis
       if (k === 0) await new Promise((ok) => setTimeout(ok, 700)); // band: bir oz kutib, qayta
     }
   }
+  if (best) return best;
   throw new Error("Gemini hozir band, birozdan keyin qayta urinib ko'ring");
 }
 
@@ -1208,7 +1212,7 @@ async function saveRevizya(stock: number, cash: number, raw: string | null, note
 }
 
 /* --- 🧑‍🏫 Ustoz-buxgalter --- */
-const U_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-lite-latest"];
+const U_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
 const USTOZ = `Sen — 20 yillik tajribaga ega bosh buxgalter va kichik savdo (oziq-ovqat, mayda chakana do'kon) bo'yicha moliyaviy maslahatchisan. O'zbekistonda ishlaysan. Foydalanuvchi — do'kon egasi, sening shogirding. U do'konini "tiriltirmoqchi". Ustoz kabi gapir: samimiy, lekin aniq, talabchan va amaliy.
 
 QOIDALAR:
@@ -1256,7 +1260,7 @@ async function ustoz(question = ""): Promise<string> {
   const txt = await gemini({
     system_instruction: { parts: [{ text: USTOZ }] },
     contents: [{ role: "user", parts: [{ text: `MA'LUMOTLAR:\n${ctx}\n\nVAZIFA:\n${task}` }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+    generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
   }, U_MODELS, 512);
   return txt.trim();
 }
