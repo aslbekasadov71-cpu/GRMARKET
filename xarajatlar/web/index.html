@@ -127,6 +127,9 @@ nav button.on{color:var(--b)}
 .modal>div{background:var(--bg);width:100%;max-width:560px;margin:0 auto;border-radius:26px 26px 0 0;padding:20px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto;animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
 .modal .act{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom));margin:6px -16px 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 82%,transparent);z-index:2}
+.srow{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}.srow:last-child{border:0}.srow .grow{flex:1;min-width:0}.srow b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.srow small{color:var(--mute);font-size:12.5px}
+.sin{flex:1;min-width:0;margin:0;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;font-size:15px;background:#fff;color:var(--ink);outline:none}.sin:focus{border-color:var(--b)}.sin.pr{flex:none;width:104px;text-align:right}
+.sdel{flex:none;border:0;background:none;color:var(--mute);padding:6px}.stot{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:14px;color:var(--mute)}.stot>b{font-size:20px;color:var(--ink)}
 .ask{position:fixed;inset:0;z-index:30;background:rgba(16,24,40,.5);display:grid;place-items:center;padding:24px}
 .ask>div{background:#fff;border-radius:22px;padding:22px 18px 16px;width:100%;max-width:340px;text-align:center;animation:up .18s ease-out}
 .ask b{display:block;font-size:17px;margin:8px 0 16px}.ask .row{gap:10px}
@@ -340,8 +343,8 @@ const inRange = r => inDates(r) && (scope === "all" || isS(r) || r.scope === sco
 async function load(){
   document.querySelectorAll(".pill.rf").forEach(b => b.classList.add("spinning"));
   try{
-    const [j, rv] = await Promise.all([api("list", {from: mStart(-1) < dAgo(62) ? mStart(-1) : dAgo(62)}), api("revizya_list").catch(() => ({rows:[]}))]);
-    ROWS = j.rows || []; DEBTS = j.debts || []; REV = rv.rows || []; ANIM = true; draw();
+    const [j, rv, sk] = await Promise.all([api("list", {from: mStart(-1) < dAgo(62) ? mStart(-1) : dAgo(62)}), api("revizya_list").catch(() => ({rows:[]})), api("stock_list").catch(() => STK)]);
+    ROWS = j.rows || []; DEBTS = j.debts || []; REV = rv.rows || []; STK = sk; ANIM = true; draw(); if(STK.open && $("#hint")) $("#hint").innerHTML = "🧮 <b>Sanoq ochiq</b> — tovar nomi va sonini ayting";
   }catch(e){ if(T && $("#body")) $("#body").innerHTML = `<div class="empty">${ic("danger-triangle-bold-duotone", 42)}<br>${esc(e.message)}</div>`; }
 }
 
@@ -556,7 +559,7 @@ function drawHolat(){
 }
 
 /* ---------- 🧑‍🏫 Ustoz-buxgalter ---------- */
-let UST = "", UQ = "", UBUSY = false, REV = [], REVRES = "";
+let UST = "", UQ = "", UBUSY = false, REV = [], REVRES = "", STK = {open:false, rows:[], cash:0, day:""};
 try{ UST = localStorage.getItem("xr_ust") || ""; UQ = localStorage.getItem("xr_ustq") || ""; }catch(e){}
 const fmtU = t => esc(t).replace(/^#+\s*/gm, "").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^\s*[*-]\s+/gm, "• ").replace(/\*(?!\s)(.+?)\*/g, "<i>$1</i>").replace(/\n/g, "<br>");
 function ustozHtml(){
@@ -590,9 +593,65 @@ function revHtml(){
     <div class="row" style="gap:12px"><div class="ico" style="background:#fef0c7;color:#b54708"><span class="sway">${ic("box-bold-duotone", 26)}</span></div><div style="flex:1;min-width:0"><b>Bugun revizya qilyapsizmi?</b><small>Tovar qoldig'i + kassa → haqiqiy foyda</small></div></div>
     <details class="guide"><summary>${ic("checklist-minimalistic-bold-duotone", 18)} Qadam-baqadam yo'riqnoma</summary><ol>${steps.map(([a, b], i) => `<li style="animation-delay:${i * 60}ms"><b>${a}</b> — ${b}</li>`).join("")}</ol>
       <div class="formula">Sotilgan tovar tannarxi = oldingi qoldiq + xaridlar − hozirgi qoldiq<br>Yalpi foyda = savdo − tannarx</div></details>
-    <button class="btn full" onclick="openRev()">${ic("add-square-bold-duotone", 20)} Revizya natijasini yozish</button>
+    ${STK.open ? `<div class="mini" onclick="openStock()" style="background:#fef0c7"><div class="ico" style="background:#fff;color:#b54708"><span class="beat" style="display:grid">${ic("microphone-3-bold", 24)}</span></div><div class="grow"><small>Sanoq davom etmoqda · ${STK.rows.length} xil tovar</small><b>${fmt(stockSum())} so'm</b></div>${ic("alt-arrow-right-linear", 20)}</div>`
+      : `<button class="btn b full" style="margin-bottom:8px" onclick="startStock()">${ic("microphone-3-bold", 20)} Ovoz bilan sanash (tovarma-tovar)</button>`}
+    <button class="btn full" onclick="openRev()">${ic("add-square-bold-duotone", 20)} Jami summani yozish</button>
     ${REVRES ? `<div class="rvres">${REVRES}</div>` : ""}
     ${REV.slice(0, 6).map(r => `<div class="rvrow"><div class="ico" style="width:38px;height:38px;background:#fef0c7;color:#b54708">${ic("clipboard-check-bold-duotone", 20)}</div><div class="grow"><b>${dLabel(r.done_on)}</b><small>tovar ${fmt(r.stock)} · kassa ${fmt(r.cash)}</small></div><button onclick="delRev(${r.id})" aria-label="O'chirish">${ic("trash-bin-trash-linear", 20)}</button></div>`).join("")}</div>`;
+}
+/* ---------- 🧮 Sanoq: tovarma-tovar revizya ---------- */
+const stockSum = () => Math.round(STK.rows.reduce((a, r) => a + (r.price ? +r.qty * +r.price : 0), 0));
+const q3 = q => String(Math.round(+q * 1000) / 1000);
+async function startStock(){
+  try{ STK = await api("stock_start"); toast("Sanoq boshlandi"); openStock(); draw(); }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
+}
+function openStock(){
+  const miss = STK.rows.filter(r => !r.price).length;
+  modal(`<div class="mh"><div><h1 style="font-size:22px">Sanoq</h1><small>${dLabel(STK.day || today())} · ${STK.rows.length} xil tovar</small></div><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
+  <div class="panel" style="padding:12px 14px"><small style="color:var(--mute)">Pastdagi 🎤 mikrofon bilan yoki shu yerga yozing:</small>
+    <div class="row" style="gap:8px;margin-top:8px"><input id="stx" class="sin" placeholder="Snikers 20 ta, kefir 15 ta" onkeydown="if(event.key==='Enter')stockSend()"><button class="btn b" style="flex:none;width:50px;height:46px;padding:0;margin:0" onclick="stockSend()">${ic("plain-2-bold", 20)}</button></div>
+    <div id="sth" style="font-size:13px;margin-top:6px;color:var(--mute)"></div></div>
+  <div class="panel" style="padding:6px 12px">${STK.rows.length ? STK.rows.map(r => `<div class="srow"><div class="grow"><b>${esc(r.name)}</b><small>${q3(r.qty)} ${esc(r.unit)}${r.price ? ` × ${fmt(r.price)} = <b>${fmt(+r.qty * +r.price)}</b>` : ""}</small></div>
+      <input inputmode="numeric" class="sin pr" placeholder="narxi" value="${r.price ? fmt(r.price) : ""}" oninput="const v=digits(this.value);this.value=v?fmt(v):''" onchange="stockPrice(${r.id}, digits(this.value))">
+      <button class="sdel" onclick="stockDel(${r.id})" aria-label="O'chirish">${ic("trash-bin-trash-linear", 18)}</button></div>`).join("")
+    : `<div class="empty" style="padding:18px 0">${ic("box-bold-duotone", 40)}<br>Hali tovar yo'q.<br><small>Ayting: «Snikers 20 ta, kefir 15 ta, sut 10 ta»</small></div>`}</div>
+  <label class="field">${ic("wallet-money-bold-duotone", 22)}<input inputmode="numeric" placeholder="Kassadagi pul (ixtiyoriy)" value="${STK.cash ? fmt(STK.cash) : ""}" oninput="const v=digits(this.value);this.value=v?fmt(v):''" onchange="STK.cash=digits(this.value);api('stock_cash',{cash:STK.cash}).catch(()=>{})"></label>
+  <div class="act"><div class="stot"><span>Tovar summasi${miss ? ` · <b style="color:var(--red)">${miss} ta narxsiz</b>` : ""}</span><b>${fmt(stockSum())} so'm</b></div>
+    <button class="btn b full" id="sfin" onclick="stockFinish()">${ic("check-circle-bold", 20)} Sanoqni yakunlash</button></div>`);
+}
+async function stockApply(j){
+  STK.rows = j.rows || STK.rows; if(j.cash) STK.cash = j.cash;
+  const a = j.added || [];
+  return (j.heard ? `🎤 <i>«${esc(j.heard)}»</i> → ` : "") + (a.length ? `<span class="ok">${ic("check-circle-bold", 16)}</span> ` + a.map(x => `${esc(x.name)} ${x.added ? "+" + q3(x.added) : ""}${x.price ? " · " + fmt(x.price) + " dan" : ""}`).join(" · ") : j.cash ? `💵 Kassa ${fmt(j.cash)}` : "🤔 Tovar topilmadi");
+}
+async function stockSend(){
+  const v = $("#stx")?.value.trim(); if(!v || busy) return;
+  busy = true; $("#sth").innerHTML = `<span class="spin"></span> Yozyapman...`;
+  try{ const msg = await stockApply(await api("stock_text", {text:v})); openStock(); $("#sth") && ($("#sth").innerHTML = msg); }
+  catch(e){ $("#sth").innerHTML = "⚠️ " + esc(e.message); }
+  busy = false;
+}
+async function stockPrice(id, price){
+  try{ const j = await api("stock_set", {id, price}); STK.rows = STK.rows.map(r => r.id === id ? j.row : r); openStock(); }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
+}
+async function stockDel(id){
+  if(!(await ask("Bu tovar ro'yxatdan o'chirilsinmi?"))) return;
+  try{ await api("stock_del", {id}); STK.rows = STK.rows.filter(r => r.id !== id); openStock(); }
+  catch(e){ toast(esc(e.message), "danger-triangle-bold"); }
+}
+async function stockFinish(){
+  const miss = STK.rows.filter(r => !r.price).length;
+  if(miss && !(await ask(`${miss} ta tovarga narx qo'yilmagan — ular summaga kirmaydi. Baribir yakunlansinmi?`, "Yakunlash"))) return;
+  const b = $("#sfin"); b.disabled = true;
+  try{
+    const j = await api("stock_finish");
+    if(j.row) REV = [j.row, ...REV.filter(r => r.id !== j.row.id)];
+    REVRES = (j.text || "").replace(/\n/g, "<br>"); STK = {open:false, rows:[], cash:0, day:""};
+    closeModal(); toast("Revizya saqlandi"); ANIM = true; tab === "holat" ? draw() : go("holat");
+    setTimeout(() => document.querySelector(".rvres")?.scrollIntoView({behavior:"smooth", block:"center"}), 400);
+  }catch(e){ b.disabled = false; toast(esc(e.message), "danger-triangle-bold"); }
 }
 function openRev(){
   modal(`<div class="mh"><div><h1 style="font-size:22px">Revizya natijasi</h1><small>${dLabel(today())} · kirim narxida hisoblang</small></div><button class="x" onclick="closeModal()">${ic("close-circle-linear", 22)}</button></div>
@@ -795,6 +854,7 @@ function afterSave(j){
 async function sendText(){
   const v = $("#tx").value.trim(); if(!v || busy) return;
   busy = true; $("#hint").innerHTML = `<span class="spin"></span> Tushunyapman...`;
+  if(STK.open){ try{ const msg = await stockApply(await api("stock_text", {text:v})); $("#tx").value = ""; $("#hint").innerHTML = "🧮 " + msg; draw(); if($("#modal")) openStock(); } catch(e){ $("#hint").innerHTML = "⚠️ " + esc(e.message); } busy = false; return; }
   try{ const j = await api("text", {text:v}); $("#tx").value = ""; afterSave(j); $("#hint").innerHTML = savedMsg(j); }
   catch(e){ $("#hint").innerHTML = "⚠️ " + esc(e.message); }
   busy = false;
@@ -836,6 +896,7 @@ async function onRecStop(){
       src.buffer = a; src.connect(off.destination); src.start();
       blob = wav((await off.startRendering()).getChannelData(0), 16000); mime = "audio/wav";
     }catch(e){}
+    if(STK.open){ const msg = await stockApply(await api("stock_text", {audio:await b64(blob), mime})); $("#hint").innerHTML = "🧮 " + msg; draw(); if($("#modal")) openStock(); busy = false; return; }
     const j = await api("voice", {audio:await b64(blob), mime});
     afterSave(j);
     $("#hint").innerHTML = (j.heard ? `🎤 <i>«${esc(j.heard)}»</i> → ` : "") + savedMsg(j);

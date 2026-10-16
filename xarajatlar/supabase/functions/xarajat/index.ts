@@ -787,7 +787,7 @@ async function tg(method: string, body: Row) {
   if (!j.ok && !String(j.description ?? "").includes("not modified")) console.error(method, j.description);
   return j;
 }
-const APP_V = "14"; // ilova yangilanganda Telegram eski nusxani ko'rsatmasligi uchun
+const APP_V = "15"; // ilova yangilanganda Telegram eski nusxani ko'rsatmasligi uchun
 const appUrl = () => CFG?.app_token ? `${WEB_URL}/?v=${APP_V}#t=${CFG.app_token}` : `${WEB_URL}/?v=${APP_V}`;
 const B = {
   today: "📅 Bugun", report: "📊 Hisobot", debts: "📒 Qarzlar", app: "📱 Ilovani ochish", help: "💡 Yordam", pdf: "📄 PDF hisobot", holat: "📈 Do'kon holati", ustoz: "🧑‍🏫 Ustoz", rev: "📦 Revizya",
@@ -1165,8 +1165,8 @@ const REV_GUIDE = `📦 <b>Revizya — qadam-baqadam</b> <i>(ustoz yo'riqnomasi)
 <b>4. Yaroqsizini ajrating.</b> Muddati o'tgan, singan, buzilgan tovar — alohida ro'yxat. Bu <i>hisobdan chiqarish</i> (spisaniye) — zarar sifatida yoziladi.
 <b>5. Jamini hisoblang.</b> Tovar qoldig'i = Σ (soni × kirim narxi).
 <b>6. Qarzlarni tekshiring.</b> Kim sizdan nasiya olgan va siz firmalarga qancha qarzsiz — 📒 Qarzlar bo'limi bilan solishtiring.
-<b>7. Natijani yozing</b> — botga shunday yuboring:
-<code>revizya: tovar 45 mln, kassa 3 mln</code>
+<b>7. Natijani yozing</b> — eng osoni: 🎤 <b>ovoz bilan sanash</b> (pastdagi tugma yoki /sanoq): «Snikers 20 ta, kefir 15 ta» deb aytasiz, narxini keyin qo'yasiz, bot o'zi jamlaydi.
+Yoki jami summani yozing: <code>revizya: tovar 45 mln, kassa 3 mln</code>
 
 🧮 <b>Nega bu muhim?</b> Tovar xaridi hali zarar emas — sotilmagan tovar polkada pul bo'lib turadi. Haqiqiy foyda ikki revizya orasida chiqadi:
 <b>Sotilgan tovar tannarxi</b> = oldingi qoldiq + xaridlar − hozirgi qoldiq
@@ -1215,10 +1215,132 @@ async function revizyaCalc(cur: Row) {
   else if (sales && gross / sales < 0.08) x += `\n⚠️ Marja juda past (8% dan kam) — narxlarni yoki yo'qotishlarni tekshiring.`;
   return { text: x, p };
 }
-async function saveRevizya(stock: number, cash: number, raw: string | null, note: string | null = null) {
-  const { data, error } = await db.from("xr_revizya").insert({ done_on: today(), stock, cash, raw, note }).select().single();
+async function saveRevizya(stock: number, cash: number, raw: string | null, note: string | null = null, day = today()) {
+  const { data, error } = await db.from("xr_revizya").insert({ done_on: day, stock, cash, raw, note }).select().single();
   if (error) throw error;
   return data;
+}
+
+/* --- 🧮 Sanoq: revizyani ovoz bilan, tovarma-tovar --- */
+const STOCK_SYS = `Sen do'kon revizyasi (tovar sanog'i) yordamchisisan. Foydalanuvchi polkadagi tovarlarni sanab, nomi va sonini aytadi yoki yozadi, ba'zan bir donasining KIRIM (olgan) narxini ham aytadi.
+Har bir tovar uchun:
+- name — tovar nomi, qisqa, bosh harf bilan, o'zbek lotin yozuvida; brend va hajmni saqla (masalan: Snikers, Kefir 1 l, Sut, Coca-Cola 1.5 l, Non).
+- qty — soni, raqam bilan ("yigirmata"=20, "o'n beshta"=15, "bir yarim kilo"=1.5, "ikki blok"=2).
+- unit — dona, kg, litr, blok, pachka, quti, yashik, qop; aytilmasa "dona".
+- price — BIR dona (birlik) narxi so'mda, faqat aytilgan bo'lsa ("donasi 8 ming", "8 mingdan" → 8000); aytilmasa 0. "Jami 160 ming" kabi umumiy narx aytilsa — qty ga bo'lib yoz.
+Faqat narx aytilsa ("snikers narxi 8 ming") — qty=0, price=8000.
+cash — kassadagi pul aytilsa ("kassada 3 mln"), so'mda; aks holda 0.
+Hech narsani to'qib chiqarma, aytilmagan tovarni qo'shma.`;
+const S_ITEMS = { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, qty: { type: "NUMBER" }, unit: { type: "STRING" }, price: { type: "INTEGER" } }, required: ["name", "qty"] } };
+async function stockParse(text: string | null, audio?: { b64: string; mime: string }) {
+  await cfg();
+  const parts = audio ? [{ inline_data: { mime_type: audio.mime, data: audio.b64 } }] : [{ text: String(text).slice(0, 3000) }];
+  const props: Row = { items: S_ITEMS, cash: { type: "INTEGER" } };
+  if (audio) props.transcript = { type: "STRING" };
+  const txt = await gemini({
+    system_instruction: { parts: [{ text: STOCK_SYS + (audio ? `\n"transcript" ga aytilganini aynan o'zbek lotin yozuvida yoz.` : "") }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: props, required: audio ? ["transcript", "items"] : ["items"] } },
+  });
+  const o = JSON.parse(txt || "{}");
+  return { heard: String(o.transcript ?? ""), items: Array.isArray(o.items) ? o.items : [], cash: Math.max(0, Math.round(Number(o.cash) || 0)) };
+}
+// ochiq sanoq: config da rev_open = sana
+async function revOpen() {
+  const c = await cfg(true);
+  return c.rev_open && Date.now() - Date.parse(c.rev_open_at ?? "") < 20 * 3600e3 ? c.rev_open : "";
+}
+const nkey = (s: string) => pkey(s).replace(/[^\p{L}\p{N}.]+/gu, " ").trim();
+const qfmt = (q: number) => String(Math.round(Number(q) * 1000) / 1000);
+async function stockRows(day: string) {
+  const { data } = await db.from("xr_stock").select("*").eq("rev_on", day).order("id").limit(2000);
+  return data ?? [];
+}
+const stockSum = (rs: Row[]) => Math.round(rs.reduce((a, r) => a + (r.price ? Number(r.qty) * Number(r.price) : 0), 0));
+async function addStock(day: string, items: Row[]) {
+  const ex = await stockRows(day);
+  const out: Row[] = [];
+  for (const it of items) {
+    const name = String(it.name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!name) continue;
+    const qty = Math.max(0, Number(it.qty) || 0), price = Math.max(0, Math.round(Number(it.price) || 0));
+    const unit = String(it.unit || "dona").trim().slice(0, 12) || "dona";
+    const m = ex.find((e: Row) => nkey(e.name) === nkey(name));
+    if (m) {
+      const upd: Row = { updated_at: new Date().toISOString() };
+      if (qty) upd.qty = Number(m.qty) + qty;
+      if (price) upd.price = price;
+      const { data } = await db.from("xr_stock").update(upd).eq("id", m.id).select().single();
+      if (data) { Object.assign(m, data); out.push({ ...data, added: qty }); }
+    } else if (qty || price) {
+      const { data } = await db.from("xr_stock").insert({ rev_on: day, name, qty, unit, price: price || null }).select().single();
+      if (data) { ex.push(data); out.push({ ...data, added: qty }); }
+    }
+  }
+  return out;
+}
+const stockKb = () => ({ inline_keyboard: [
+  [{ text: "📋 Ro'yxat", callback_data: "sl:" }, { text: "✅ Tugatish", callback_data: "sf:" }],
+  [{ text: "📱 Ilovada narx qo'yish", web_app: { url: appUrl() } }],
+] });
+async function stockAdd(chat: number, day: string, r: { heard: string; items: Row[]; cash: number }, showHeard: boolean) {
+  const added = await addStock(day, r.items);
+  if (r.cash) { await db.from("xr_config").upsert({ key: "rev_cash", value: String(r.cash) }); await cfg(true); }
+  const all = await stockRows(day);
+  let t = showHeard && r.heard ? `🎤 <i>«${esc(r.heard.slice(0, 400))}»</i>\n\n` : "";
+  t += added.length
+    ? `🧮 <b>Sanoqqa yozildi:</b>\n` + added.map((x) => `• ${esc(x.name)} — ${x.added ? `+${qfmt(x.added)} ${esc(x.unit)}${Number(x.qty) !== x.added ? ` (jami ${qfmt(x.qty)})` : ""}` : `${qfmt(x.qty)} ${esc(x.unit)}`}${x.price ? ` · ${fmt(+x.price)} so'mdan` : ""}`).join("\n")
+    : r.cash ? "" : "🤔 Tovar topilmadi. Masalan: «Snikers 20 ta, kefir 15 ta, sut 10 ta»";
+  if (r.cash) t += `\n💵 Kassa: <b>${som(r.cash)}</b>`;
+  const miss = all.filter((x: Row) => !x.price).length;
+  t += `\n\n📦 Jami: <b>${all.length}</b> xil tovar · summa: <b>${som(stockSum(all))}</b>${miss ? `\n<i>${miss} tasiga narx qo'yilmagan</i>` : ""}`;
+  await send(chat, t, stockKb());
+  return { added, all };
+}
+async function stockListText(day: string) {
+  const rs = await stockRows(day), c = await cfg(true);
+  if (!rs.length) return "📋 Sanoq ro'yxati hali bo'sh.\nTovar nomi va sonini ayting: «Snikers 20 ta, kefir 15 ta» 🎤";
+  const lines = rs.slice(0, 70).map((r: Row, i: number) => `${i + 1}. ${esc(r.name)} — ${qfmt(r.qty)} ${esc(r.unit)}${r.price ? ` × ${fmt(+r.price)} = <b>${fmt(Number(r.qty) * Number(r.price))}</b>` : " · <i>narx yo'q</i>"}`);
+  let t = `📋 <b>Sanoq ro'yxati</b> · ${dateUz(day)}\n\n` + lines.join("\n");
+  if (rs.length > 70) t += `\n<i>… yana ${rs.length - 70} ta (to'liq ro'yxat ilovada)</i>`;
+  const miss = rs.filter((r: Row) => !r.price).length;
+  t += `\n\n💰 Tovar summasi: <b>${som(stockSum(rs))}</b>${miss ? `\n⚠️ ${miss} ta tovarga narx qo'yilmagan` : ""}${c.rev_cash ? `\n💵 Kassa: ${som(+c.rev_cash)}` : ""}`;
+  return t;
+}
+async function stockStart(chat: number) {
+  const open = await revOpen(), day = open || today();
+  if (!open) {
+    await db.from("xr_config").upsert([{ key: "rev_open", value: day }, { key: "rev_open_at", value: new Date().toISOString() }]);
+    await cfg(true);
+  }
+  const rs = await stockRows(day);
+  await send(chat, `🧮 <b>Sanoq ${open || rs.length ? "davom etmoqda" : "boshlandi"}</b> · ${dateUz(day)}${rs.length ? ` · ${rs.length} xil tovar bor` : ""}\n\n` +
+    `Polkadagi tovarlarni <b>ovozli</b> yoki yozib ayting:\n<i>«Snikers 20 ta, kefir 15 ta, sut 10 ta»</i>\n\n` +
+    `Narxni hozir yoki keyin aytsangiz bo'ladi (kirim narxi):\n<i>«Snikers 8 mingdan, kefir 9 mingdan»</i>\n` +
+    `Kassani ham ayting: <i>«kassada 3 mln»</i>\n\n` +
+    `⚠️ Sanoq paytida yozganlaringiz <b>xarajat bo'lib yozilmaydi</b>. Tugatgach ✅ <b>Tugatish</b> ni bosing.`, stockKb());
+}
+async function stockClose() {
+  await db.from("xr_config").delete().in("key", ["rev_open", "rev_open_at", "rev_cash"]);
+  await cfg(true);
+}
+async function stockFinish(chat: number, force = false) {
+  const day = await revOpen();
+  if (!day) { await send(chat, "Ochiq sanoq yo'q. Boshlash: /sanoq"); return; }
+  const rs = await stockRows(day), c = await cfg(true);
+  if (!rs.length) { await stockClose(); await send(chat, "Sanoq bo'sh edi — yopildi."); return; }
+  const miss = rs.filter((r: Row) => !r.price);
+  if (miss.length && !force) {
+    await send(chat, `⚠️ <b>${miss.length} ta tovarga narx qo'yilmagan:</b>\n` + miss.slice(0, 40).map((r: Row) => `• ${esc(r.name)} — ${qfmt(r.qty)} ${esc(r.unit)}`).join("\n") +
+      `\n\nNarxini ayting: <i>«${esc(miss[0].name)} 8 mingdan»</i> yoki ilovada qo'ying. Narxi yo'q tovarlar summaga kirmaydi.`,
+      { inline_keyboard: [[{ text: "📱 Ilovada narx qo'yish", web_app: { url: appUrl() } }], [{ text: "💾 Shundayicha saqlash", callback_data: "sf:force" }]] });
+    return;
+  }
+  const total = stockSum(rs), cash = Number(c.rev_cash) || 0;
+  const cur = await saveRevizya(total, cash, `Sanoq: ${rs.length} xil tovar`, miss.length ? `${miss.length} ta tovar narxsiz` : null, day);
+  await stockClose();
+  const { text } = await revizyaCalc(cur);
+  await send(chat, `✅ <b>Sanoq yakunlandi</b> · ${rs.length} xil tovar\n\n` + text, { inline_keyboard: [[{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }, { text: "🗑 O'chirish", callback_data: `rvd:${cur.id}` }]] });
 }
 
 /* --- 🧑‍🏫 Ustoz-buxgalter --- */
@@ -1296,7 +1418,7 @@ async function sendRevizyaGuide(chat: number) {
   const { data: rv } = await db.from("xr_revizya").select("*").order("done_on", { ascending: false }).limit(3);
   let t = REV_GUIDE;
   if (rv?.length) t += `\n\n🗂 <b>Oxirgi revizyalar:</b>\n` + rv.map((r: Row) => `${dateUz(r.done_on)} — tovar ${fmt(r.stock)} · kassa ${fmt(r.cash)}`).join("\n");
-  await send(chat, t, { inline_keyboard: [[{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }]] });
+  await send(chat, t, { inline_keyboard: [[{ text: "🎤 Ovoz bilan sanashni boshlash", callback_data: "ss:" }], [{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }]] });
 }
 
 /* --- har kuni kechqurun avtomatik hisobot --- */
@@ -1347,7 +1469,7 @@ Yoki shunchaki so'rang: <i>«do'kon foydadami?»</i>, <i>«qayerga ketyapmiz?»<
 🧑‍🏫 <b>Ustoz-buxgalter</b> — raqamlaringizni tahlil qilib o'rgatadi: /ustoz
 Savol bering: <i>«ustoz, narxni qanday qo'yay?»</i>
 
-📦 <b>Revizya</b> — yo'riqnoma: /revizya · natija: <i>«revizya: tovar 45 mln, kassa 3 mln»</i>
+📦 <b>Revizya</b> — /sanoq: tovarlarni ovoz bilan sanaysiz (<i>«Snikers 20 ta, kefir 15 ta»</i>), narxini keyin qo'yasiz, bot jamlaydi. Yo'riqnoma: /revizya
 
 📄 <b>PDF hisobot</b> — barcha statistika va yozuvlar bitta faylda: /pdf
 Bir xil xabar ikki marta kelsa, bot so'rab oladi — ikki marta yozilmaydi.
@@ -1403,6 +1525,9 @@ async function onTg(upd: Row) {
     if (act === "rd") { await ack(); await send(chat, await reportText(arg)); return; }
     if (act === "us") { await ack("🧑‍🏫 Ustoz o'ylayapti…"); await sendUstoz(chat); return; }
     if (act === "rv") { await ack(); await sendRevizyaGuide(chat); return; }
+    if (act === "ss") { await ack(); await stockStart(chat); return; }
+    if (act === "sl") { await ack(); const d = (await revOpen()) || today(); await send(chat, await stockListText(d), stockKb()); return; }
+    if (act === "sf") { await ack(); await stockFinish(chat, arg === "force"); return; }
     if (act === "rvd") {
       const { data: rr } = await db.from("xr_revizya").select("*").eq("id", Number(arg)).maybeSingle();
       if (!rr) { await ack("Allaqachon o'chirilgan"); return; }
@@ -1486,7 +1611,8 @@ async function onTg(upd: Row) {
     "/kunyakuni": () => evening(chat),
     [B.holat]: () => sendHealth(chat), "/holat": () => sendHealth(chat),
     [B.ustoz]: () => sendUstoz(chat), "/ustoz": () => sendUstoz(chat),
-    [B.rev]: () => sendRevizyaGuide(chat), "/revizya": () => sendRevizyaGuide(chat),
+    [B.rev]: async () => (await revOpen()) ? stockStart(chat) : sendRevizyaGuide(chat), "/revizya": () => sendRevizyaGuide(chat),
+    "/sanoq": () => stockStart(chat), "/tugatish": () => stockFinish(chat),
     [B.pdf]: () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/pdf": () => sendPdf(chat, "month").catch((e) => send(chat, "⚠️ " + esc((e as Error).message))),
     "/chiqish": async () => {
@@ -1501,6 +1627,22 @@ async function onTg(upd: Row) {
   if (text.startsWith("/")) { await send(chat, HELP); return; }
 
   const voice = m.voice ?? m.audio;
+  // ochiq sanoq bo'lsa — ovoz va matn tovar ro'yxatiga yoziladi
+  const sday = await revOpen();
+  if (sday && (voice || (text && !/^\s*(ustoz|buxgalter|domla)\b/i.test(text)))) {
+    await tg("sendChatAction", { chat_id: chat, action: "typing" });
+    try {
+      if (/^\s*(tugat|tamom|bo'?ldi|yakunla)/i.test(text) && !voice) { await stockFinish(chat); return; }
+      let r;
+      if (voice) {
+        const f = await tg("getFile", { file_id: voice.file_id });
+        const audio = await fetch(`https://api.telegram.org/file/bot${TG_TOKEN}/${f.result.file_path}`).then((x) => x.arrayBuffer());
+        r = await stockParse(null, { b64: encodeBase64(new Uint8Array(audio)), mime: voice.mime_type || "audio/ogg" });
+      } else r = await stockParse(text);
+      await stockAdd(chat, sday, r, !!voice);
+    } catch (e) { console.error(e); await send(chat, "⚠️ Xatolik: " + esc((e as Error).message) + "\nQaytadan ayting.", stockKb()); }
+    return;
+  }
   if (voice) { await doVoice(chat, voice.file_id, voice.mime_type || "audio/ogg", false, voice.file_unique_id ?? ""); return; }
   if (!text) { await send(chat, "Xarajat, savdo yoki qarzni yozing yoki 🎤 ovozli xabar yuboring"); return; }
   // «ustoz, …» — savol ustozga
@@ -1594,6 +1736,53 @@ async function onApi(req: Request) {
       const { text } = await revizyaCalc(cur);
       return json({ row: cur, text });
     }
+    case "stock_list": {
+      const open = await revOpen(), c = await cfg();
+      let day = open;
+      if (!day) { const { data: last } = await db.from("xr_stock").select("rev_on").order("rev_on", { ascending: false }).limit(1); day = last?.[0]?.rev_on ?? today(); }
+      return json({ open: !!open, day, rows: await stockRows(day), cash: Number(c.rev_cash) || 0 });
+    }
+    case "stock_start": {
+      if (!(await revOpen())) { await db.from("xr_config").upsert([{ key: "rev_open", value: today() }, { key: "rev_open_at", value: new Date().toISOString() }]); await cfg(true); }
+      const day = await revOpen();
+      return json({ open: true, day, rows: await stockRows(day), cash: Number((await cfg()).rev_cash) || 0 });
+    }
+    case "stock_text": {
+      const day = await revOpen();
+      if (!day) return json({ error: "Sanoq ochiq emas" }, 400);
+      const r = b.audio ? await stockParse(null, { b64: String(b.audio), mime: String(b.mime ?? "audio/wav") }) : await stockParse(String(b.text ?? ""));
+      const added = await addStock(day, r.items);
+      if (r.cash) { await db.from("xr_config").upsert({ key: "rev_cash", value: String(r.cash) }); await cfg(true); }
+      return json({ heard: r.heard, added, cash: r.cash, rows: await stockRows(day) });
+    }
+    case "stock_set": {
+      const upd: Row = { updated_at: new Date().toISOString() };
+      if (b.price !== undefined) upd.price = Math.max(0, Math.round(Number(b.price) || 0)) || null;
+      if (b.qty !== undefined) upd.qty = Math.max(0, Number(b.qty) || 0);
+      if (b.name) upd.name = String(b.name).trim().slice(0, 80);
+      const { data, error } = await db.from("xr_stock").update(upd).eq("id", Number(b.id)).select().single();
+      if (error) throw error;
+      return json({ row: data });
+    }
+    case "stock_del": {
+      await db.from("xr_stock").delete().eq("id", Number(b.id));
+      return json({ ok: true });
+    }
+    case "stock_cash": {
+      await db.from("xr_config").upsert({ key: "rev_cash", value: String(Math.max(0, Math.round(Number(b.cash) || 0))) }); await cfg(true);
+      return json({ ok: true });
+    }
+    case "stock_finish": {
+      const day = await revOpen();
+      if (!day) return json({ error: "Sanoq ochiq emas" }, 400);
+      const rs = await stockRows(day), c = await cfg(true);
+      if (!rs.length) { await stockClose(); return json({ text: "Sanoq bo'sh edi" }); }
+      const miss = rs.filter((r: Row) => !r.price).length;
+      const cur = await saveRevizya(stockSum(rs), Number(c.rev_cash) || 0, `Sanoq: ${rs.length} xil tovar`, miss ? `${miss} ta tovar narxsiz` : null, day);
+      await stockClose();
+      const { text } = await revizyaCalc(cur);
+      return json({ row: cur, text });
+    }
     case "revizya_del": {
       await db.from("xr_revizya").delete().eq("id", Number(b.id));
       return json({ ok: true });
@@ -1643,6 +1832,7 @@ Deno.serve(async (req) => {
         { command: "holat", description: "Do'kon holati: foyda yoki zarar" },
         { command: "ustoz", description: "Ustoz-buxgalter tahlili va maslahati" },
         { command: "revizya", description: "Revizya yo'riqnomasi va natijani yozish" },
+        { command: "sanoq", description: "Revizya: tovarlarni ovoz bilan sanash" },
         { command: "kunyakuni", description: "Kun yakuni hozir" },
         { command: "pdf", description: "PDF hisobot yuklab olish" },
         { command: "kechki", description: "21:00 dagi hisobotni yoqish/o'chirish" },
