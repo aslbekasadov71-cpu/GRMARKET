@@ -335,34 +335,48 @@ function simpleParse(text: string): { items: Row[]; reply: string } {
 }
 
 /* ---------------- ovozni qayta ishlash ---------------- */
-async function handleVoice(b64: string, mime: string, source: string): Promise<{ heard: string; saved: Row[]; debts?: Row[]; reply: string }> {
+async function handleVoice(b64: string, mime: string, source: string, force = false): Promise<{ heard: string; saved: Row[]; debts?: Row[]; reply: string; dup?: Row }> {
   await Promise.all([cfg(), loadPeople()]);
   if (GEMINI_KEY && !CLAUDE_KEY) {
     const v = await geminiVoice(b64, mime);
     if (!v.heard) return { heard: "", saved: [], debts: [], reply: "Ovozni eshitmadim, qaytadan aniqroq ayting" };
-    const r = await saveItems(v.items.length ? v.items : simpleParse(v.heard).items, v.reply, v.heard, source);
+    const r = await saveItems(v.items.length ? v.items : simpleParse(v.heard).items, v.reply, v.heard, source, force);
     return { heard: v.heard, ...r };
   }
   const heard = await transcribe(b64, mime);
   if (!heard) return { heard: "", saved: [], debts: [], reply: "Ovozni eshitmadim, qaytadan aniqroq ayting" };
-  return { heard, ...(await saveFromText(heard, source)) };
+  return { heard, ...(await saveFromText(heard, source, force)) };
 }
 
 /* ---------------- saqlash va hisobot ---------------- */
-async function saveFromText(text: string, source: string) {
+async function saveFromText(text: string, source: string, force = false) {
   let parsed: { items: Row[]; reply: string };
   await Promise.all([cfg(), loadPeople()]);
   const ai = CLAUDE_KEY ? claudeParse : GEMINI_KEY ? geminiParse : null;
   if (ai) {
     try { parsed = await ai(text); } catch (e) { console.error(e); parsed = simpleParse(text); }
   } else parsed = simpleParse(text);
-  return saveItems(parsed.items, parsed.reply, text, source);
+  return saveItems(parsed.items, parsed.reply, text, source, force);
 }
-async function saveItems(items: Row[], reply: string, text: string, source: string) {
+async function saveItems(items: Row[], reply: string, text: string, source: string, force = false) {
   const isQ = (x: Row) => x.kind === "qarz" || x.cat === "qarz" || (x.person && x.dir);
   const rows = items.filter((x) => !isQ(x)).map((x) => cleanItem(x, text, source)).filter((x) => x.amount > 0);
   const drows = items.filter(isQ).map((x) => cleanDebt(x, text, source)).filter((x) => x.amount > 0 && x.person);
   if (!rows.length && !drows.length) return { saved: [] as Row[], debts: [] as Row[], reply: reply || "Tushunmadim. Masalan: «svetga 250 ming to'ladim» yoki «Alisher 85 ming nasiya oldi»" };
+  // Takror: hammasi oxirgi 15 daqiqada aynan shu summalar bilan yozilgan bo'lsa — saqlamay, so'raymiz
+  if (!force && source.startsWith("tg")) {
+    const since = new Date(Date.now() - 15 * 60_000).toISOString();
+    const [{ data: re }, { data: rd }] = await Promise.all([
+      db.from("xr_expenses").select("kind,amount,spent_on,created_at").gte("created_at", since),
+      db.from("xr_debts").select("person,dir,kind,amount,created_at").gte("created_at", since),
+    ]);
+    const okE = rows.every((r) => (re ?? []).some((e: Row) => e.kind === r.kind && +e.amount === r.amount && e.spent_on === r.spent_on));
+    const okD = drows.every((d) => (rd ?? []).some((e: Row) => e.dir === d.dir && e.kind === d.kind && +e.amount === d.amount && pkey(e.person) === pkey(d.person)));
+    if (okE && okD) {
+      const at = [...(re ?? []), ...(rd ?? [])].map((e: Row) => e.created_at as string).sort().pop() ?? "";
+      return { saved: [] as Row[], debts: [] as Row[], reply: "", dup: { at, rows, drows } };
+    }
+  }
   // ismlarni mavjud yozilishiga moslash
   if (drows.length) {
     const { data: ex } = await db.from("xr_debts").select("person,dir").limit(2000);
@@ -564,7 +578,8 @@ async function savedText(rows: Row[], debts: Row[] = []) {
     const ppl = debtPeople(await debtRows());
     t += `\n\n📒 <b>Qarz daftari</b>\n` + debts.map((d) => {
       const p = ppl.find((x) => x.dir === d.dir && pkey(x.name) === pkey(d.person));
-      return `${d.dir === "in" ? "🟢" : "🔴"} <b>${esc(d.person)}</b> ${KL[d.dir][d.kind]} — ${d.kind === "pay" ? "−" : "+"}${fmt(+d.amount)}\n     ${p && Math.round(p.bal) <= 0 ? "✅ qarz yopildi" : `qolgan qarz: <b>${som(p?.bal ?? 0)}</b>`}`;
+      const b = Math.round(p?.bal ?? 0);
+      return `${d.dir === "in" ? "🟢" : "🔴"} <b>${esc(d.person)}</b> ${KL[d.dir][d.kind]} — ${d.kind === "pay" ? "−" : "+"}${fmt(+d.amount)}\n     ${b < 0 ? `⚠️ qarzdan <b>${fmt(-b)}</b> ko'p to'landi — tekshiring` : b === 0 ? "✅ qarz yopildi" : `qolgan qarz: <b>${som(b)}</b>`}`;
     }).join("\n");
   }
   return t;
@@ -594,16 +609,23 @@ function summaryCaption(title: string, all: Row[]) {
     t += `\n<b>Eng ko'p ketgan:</b>\n` + ent.slice(0, 5).map(([k, v]) => { const [sc, c] = k.split("|"); return `${catLabel(sc, c)} — ${fmt(v)} · ${Math.round(v / tot * 100)}%`; }).join("\n");
     if (ent.length > 5) t += `\n<i>… yana ${ent.length - 5} tur</i>`;
   }
-  return t.slice(0, 1020);
+  return t;
+}
+// rasm izohi 1024 belgidan oshmasin (teg o'rtasidan kesmaslik uchun qator bo'yicha)
+function fitCaption(t: string) {
+  if (t.length <= 1024) return t;
+  const lines = t.split("\n");
+  while (lines.length > 1 && lines.join("\n").length > 1010) lines.pop();
+  return lines.join("\n") + "\n…";
 }
 const repKb2 = (cur: string) => ({ inline_keyboard: [
   Object.entries(RANGES).slice(0, 3).map(([k, l]) => ({ text: (k === cur ? "✓ " : "") + l, callback_data: `rep:${k}` })),
   Object.entries(RANGES).slice(3).map(([k, l]) => ({ text: (k === cur ? "✓ " : "") + l, callback_data: `rep:${k}` })),
   [{ text: "📋 Batafsil ro'yxat", callback_data: `rd:${cur}` }, { text: "📱 Ilovada ko'rish", web_app: { url: appUrl() } }],
 ] });
-async function sendReport(chat: number, range: string, msg?: Row) {
+async function sendReport(chat: number, range: string, msg?: Row, pre = "", post = "") {
   const { from, to, title, all } = await rangeRows(range);
-  const caption = summaryCaption(title, all);
+  const caption = fitCaption(pre + summaryCaption(title, all) + post);
   const photo = all.length ? chartFor(range, all, from, to, plainTitle(title)) : null;
   const kb = repKb2(range);
   if (msg) {
@@ -649,11 +671,104 @@ async function personView(lastId: number) {
   const p = ppl.find((x) => x.dir === r0.dir && pkey(x.name) === pkey(r0.person));
   if (!p) return null;
   const b = Math.round(p.bal);
-  let t = `👤 <b>${esc(p.name)}</b>\n${p.dir === "in" ? "🟢 Menga qarzdor" : "🔴 Men unga qarzdorman"}\n\n${b <= 0 ? "✅ <b>Qarz yopilgan</b>" : `Qolgan qarz: <b>${som(b)}</b>`}\n\n<b>Tarix:</b>\n`;
+  let t = `👤 <b>${esc(p.name)}</b>\n${p.dir === "in" ? "🟢 Menga qarzdor" : "🔴 Men unga qarzdorman"}\n\n${b < 0 ? `⚠️ <b>Qarzdan ${som(-b)} ko'p to'langan</b> — yozuvlarni tekshiring` : b === 0 ? "✅ <b>Qarz yopilgan</b>" : `Qolgan qarz: <b>${som(b)}</b>`}\n\n<b>Tarix:</b>\n`;
   t += p.rows.slice(0, 25).map((r: Row) => `${dShort(r.spent_on)} · ${r.kind === "pay" ? "💵" : "➕"} ${KL[r.dir][r.kind]} <b>${r.kind === "pay" ? "−" : "+"}${fmt(+r.amount)}</b>${r.note ? ` <i>(${esc(r.note)})</i>` : ""}`).join("\n");
   t += `\n\n<i>Qo'shish uchun ayting: «${esc(p.name)} 50 ming ${p.dir === "in" ? "qaytardi" : "ga qarzimdan berdim"}»</i>`;
   const kb = { inline_keyboard: [[{ text: "🗑 Oxirgi yozuvni o'chirish", callback_data: `dl:${p.rows[0].id}` }], [{ text: "⬅️ Qarzlarga qaytish", callback_data: `dt:${p.dir}` }]] };
   return { t, kb };
+}
+
+/* --- takroriy yozuvdan himoya --- */
+// Telegram bir xil xabarni qayta yuborsa (update_id) — jim o'tkazib yuboramiz
+async function firstTime(key: string) {
+  const { data, error } = await db.from("xr_seen").upsert({ key }, { onConflict: "key", ignoreDuplicates: true }).select("key");
+  return !!error || (data ?? []).length > 0;
+}
+// Bir xil ovoz yoki matn yaqinda yozilganmi? Yozilgan bo'lsa — o'sha vaqtni qaytaradi
+async function recentDup(key: string, mins: number, val: Row) {
+  const { data } = await db.from("xr_seen").select("created_at,val").eq("key", key).maybeSingle();
+  const was = data?.val?.ok && Date.now() - Date.parse(data.created_at) < mins * 60_000 ? data.created_at as string : null;
+  // keyinchalik «Ha, yana yozilsin» uchun kerak; ok=false — hali muvaffaqiyatli saqlanmagan
+  if (!was) await db.from("xr_seen").upsert({ key, val: { ...val, ok: false }, created_at: new Date().toISOString() });
+  return was;
+}
+const markSaved = (key: string, val: Row) => db.from("xr_seen").upsert({ key, val: { ...val, ok: true }, created_at: new Date().toISOString() });
+const normText = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+async function sha(s: string) {
+  const h = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s));
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+const dupKb = (key: string) => ({ inline_keyboard: [[{ text: "✅ Ha, yana yozilsin", callback_data: `ag:${key}` }, { text: "❌ Kerak emas", callback_data: "no:" }]] });
+
+async function doVoice(chat: number, fileId: string, mime: string, force = false, uniq = "") {
+  if (!force && uniq) {
+    const was = await recentDup("v:" + uniq, 7 * 24 * 60, { f: fileId, m: mime });
+    if (was) { await send(chat, `⚠️ <b>Bu ovozli xabar ${dShort(new Date(Date.parse(was) + OFF).toISOString().slice(0, 10)).toLowerCase()} ${hhmm(was)} da yozilgan.</b>\nIkki marta yozilmasligi uchun to'xtatdim. Yana yozaymi?`, dupKb("v:" + uniq)); return; }
+  }
+  await tg("sendChatAction", { chat_id: chat, action: "typing" });
+  try {
+    const f = await tg("getFile", { file_id: fileId });
+    const audio = await fetch(`https://api.telegram.org/file/bot${TG_TOKEN}/${f.result.file_path}`).then((r) => r.arrayBuffer());
+    const res = await handleVoice(encodeBase64(new Uint8Array(audio)), mime || "audio/ogg", "tg_voice", force);
+    if (!res.heard) { await send(chat, "🤔 Ovozni eshitmadim. Qaytadan, aniqroq ayting."); return; }
+    if (res.dup) {
+      const key = "v:" + (uniq || await sha(fileId));
+      await db.from("xr_seen").upsert({ key, val: { f: fileId, m: mime } });
+      await send(chat, `🎤 <i>«${esc(res.heard)}»</i>\n\n` + dupText(res.dup), dupKb(key));
+      return;
+    }
+    const ok = res.saved.length || res.debts?.length;
+    if (ok && uniq) await markSaved("v:" + uniq, { f: fileId, m: mime });
+    await send(chat, `🎤 <i>«${esc(res.heard)}»</i>\n\n` + (ok ? await savedText(res.saved, res.debts) : "🤔 " + esc(res.reply)), ok ? itemKb(res.saved, res.debts) : mainKb());
+  } catch (e) {
+    console.error(e);
+    await send(chat, "⚠️ Xatolik: " + esc((e as Error).message) + "\n\nOvozni qayta yuboring yoki matn bilan yozing.");
+  }
+}
+async function doText(chat: number, text: string, force = false) {
+  if (!force) {
+    const key = "t:" + await sha(normText(text));
+    const was = await recentDup(key, 30, { t: text });
+    if (was) { await send(chat, `⚠️ <b>Xuddi shu yozuv ${hhmm(was)} da yozilgan.</b>\n<i>«${esc(text.slice(0, 200))}»</i>\n\nYana bir marta yozaymi?`, dupKb(key)); return; }
+  }
+  await tg("sendChatAction", { chat_id: chat, action: "typing" });
+  try {
+    const res: Row = await saveFromText(text, "tg_text", force);
+    if (res.dup) {
+      const key = "t:" + await sha(normText(text));
+      await db.from("xr_seen").upsert({ key, val: { t: text } });
+      await send(chat, dupText(res.dup), dupKb(key));
+      return;
+    }
+    const ok = res.saved.length || res.debts?.length;
+    if (ok) await markSaved("t:" + await sha(normText(text)), { t: text });
+    await send(chat, ok ? await savedText(res.saved, res.debts) : "🤔 " + esc(res.reply), ok ? itemKb(res.saved, res.debts) : mainKb());
+  } catch (e) {
+    console.error(e);
+    await send(chat, "⚠️ Xatolik: " + esc((e as Error).message));
+  }
+}
+function dupText(d: Row) {
+  const items = [
+    ...d.rows.map((r: Row) => `${icon(r)} ${what(r)} — <b>${fmt(r.amount)}</b>`),
+    ...d.drows.map((x: Row) => `📒 ${esc(x.person)} — <b>${fmt(x.amount)}</b>`),
+  ].join("\n");
+  return `⚠️ <b>Bular ${d.at ? hhmm(d.at) + " da" : "hozirgina"} yozilgan edi:</b>\n${items}\n\nIkki marta yozilmasligi uchun saqlamadim. Yana yozaymi?`;
+}
+
+/* --- har kuni kechqurun avtomatik hisobot --- */
+async function eveningPost() {
+  const [{ all }, drs] = await Promise.all([rangeRows("today"), debtRows()]);
+  const ppl = debtPeople(drs);
+  const bal = (d: string) => ppl.filter((p) => p.dir === d && Math.round(p.bal) > 0).reduce((a, p) => a + p.bal, 0);
+  let post = "";
+  if (!all.some((r) => r.kind === "savdo")) post += `\n\n⚠️ <b>Bugungi savdo hali yozilmagan.</b>\nAyting: <i>«bugungi savdo 2 mln 500 ming»</i>`;
+  const bi = bal("in"), bo = bal("out");
+  if (bi || bo) post += `\n\n📒 Menga qarzdor: <b>${fmt(bi)}</b>\n📒 Mening qarzim: <b>${fmt(bo)}</b>`;
+  return post;
+}
+async function evening(chat: number) {
+  await sendReport(chat, "today", undefined, "🌙 <b>Kun yakuni</b>\n\n", await eveningPost());
 }
 
 const HELP = `💡 <b>Qanday ishlatiladi</b>
@@ -675,6 +790,9 @@ Oddiy gap bilan <b>yozing</b> yoki <b>🎤 ovozli xabar</b> yuboring:
 
 Hammasi 🏪 do'konga yoziladi, shaxsiy uchun «uyga», «o'zimga» deng.
 Xato bo'lsa 🔁 yoki 🗑 tugmasini bosing.
+Bir xil xabar ikki marta kelsa, bot so'rab oladi — ikki marta yozilmaydi.
+
+🌙 Har kuni soat 21:00 da kun yakuni keladi (o'chirish: /kechki).
 
 📅 Bugun · 📊 Hisobot · 📒 Qarzlar · 📱 Ilova`;
 
@@ -702,6 +820,7 @@ async function onTg(upd: Row) {
     return;
   }
   const chat = Number(from.id);
+  if (upd.update_id && !(await firstTime("u:" + upd.update_id))) { console.log("takroriy update", upd.update_id); return; }
   await ensureAppToken();
 
   // --- inline tugmalar ---
@@ -710,6 +829,17 @@ async function onTg(upd: Row) {
     const [act, arg] = String(q.data ?? "").split(":");
     const ack = (text?: string) => tg("answerCallbackQuery", { callback_query_id: q.id, text });
     if (act === "rep") { await ack(); await sendReport(chat, arg, msg); return; }
+    if (act === "no") { await ack("Yozilmadi"); await tg("deleteMessage", { chat_id: chat, message_id: msg.message_id }); return; }
+    if (act === "ag") {
+      const key = String(q.data).slice(3);
+      const { data: s } = await db.from("xr_seen").select("val").eq("key", key).maybeSingle();
+      await ack();
+      await tg("deleteMessage", { chat_id: chat, message_id: msg.message_id });
+      if (!s?.val) { await send(chat, "Xabar topilmadi, qaytadan yuboring."); return; }
+      if (s.val.f) await doVoice(chat, s.val.f, s.val.m, true);
+      else if (s.val.t) await doText(chat, s.val.t, true);
+      return;
+    }
     if (act === "rd") { await ack(); await send(chat, await reportText(arg)); return; }
     if (act === "dt") {
       await ack();
@@ -765,6 +895,13 @@ async function onTg(upd: Row) {
     [B.debts]: async () => { const v = await debtsView("in"); return send(chat, v.t, v.kb); }, "/qarzlar": async () => { const v = await debtsView("in"); return send(chat, v.t, v.kb); },
     "🌐 Web sahifa": () => send(chat, "📱 Ilovani ochish uchun pastdagi tugmani bosing 👇", { inline_keyboard: [[{ text: "📱 Ilovani ochish", web_app: { url: appUrl() } }]] }),
     "/web": () => send(chat, "📱 Ilova:", { inline_keyboard: [[{ text: "📱 Ilovani ochish", web_app: { url: appUrl() } }]] }),
+    "/kechki": async () => {
+      const off = c.evening !== "off";
+      await db.from("xr_config").upsert({ key: "evening", value: off ? "off" : "on" });
+      await cfg(true);
+      return send(chat, off ? "🌙 Kechki hisobot <b>o'chirildi</b>. Qayta yoqish: /kechki" : "🌙 Kechki hisobot <b>yoqildi</b> — har kuni soat 21:00 da keladi.");
+    },
+    "/kunyakuni": () => evening(chat),
     "/chiqish": async () => {
       await db.from("xr_sessions").delete().neq("token", "");
       await db.from("xr_config").delete().eq("key", "app_token");
@@ -777,31 +914,9 @@ async function onTg(upd: Row) {
   if (text.startsWith("/")) { await send(chat, HELP); return; }
 
   const voice = m.voice ?? m.audio;
-  if (voice) {
-    await tg("sendChatAction", { chat_id: chat, action: "typing" });
-    try {
-      const f = await tg("getFile", { file_id: voice.file_id });
-      const audio = await fetch(`https://api.telegram.org/file/bot${TG_TOKEN}/${f.result.file_path}`).then((r) => r.arrayBuffer());
-      const res = await handleVoice(encodeBase64(new Uint8Array(audio)), voice.mime_type || "audio/ogg", "tg_voice");
-      if (!res.heard) { await send(chat, "🤔 Ovozni eshitmadim. Qaytadan, aniqroq ayting."); return; }
-      const ok = res.saved.length || res.debts?.length;
-      await send(chat, `🎤 <i>«${esc(res.heard)}»</i>\n\n` + (ok ? await savedText(res.saved, res.debts) : "🤔 " + esc(res.reply)), ok ? itemKb(res.saved, res.debts) : mainKb());
-    } catch (e) {
-      console.error(e);
-      await send(chat, "⚠️ Xatolik: " + esc((e as Error).message));
-    }
-    return;
-  }
+  if (voice) { await doVoice(chat, voice.file_id, voice.mime_type || "audio/ogg", false, voice.file_unique_id ?? ""); return; }
   if (!text) { await send(chat, "Xarajat, savdo yoki qarzni yozing yoki 🎤 ovozli xabar yuboring"); return; }
-  await tg("sendChatAction", { chat_id: chat, action: "typing" });
-  try {
-    const res = await saveFromText(text, "tg_text");
-    const ok = res.saved.length || res.debts?.length;
-    await send(chat, ok ? await savedText(res.saved, res.debts) : "🤔 " + esc(res.reply), ok ? itemKb(res.saved, res.debts) : mainKb());
-  } catch (e) {
-    console.error(e);
-    await send(chat, "⚠️ Xatolik: " + esc((e as Error).message));
-  }
+  await doText(chat, text);
 }
 
 /* ---------------- Web API ---------------- */
@@ -887,12 +1002,28 @@ Deno.serve(async (req) => {
         { command: "hafta", description: "Oxirgi 7 kun" },
         { command: "oy", description: "Shu oy" },
         { command: "qarzlar", description: "Qarz daftari" },
+        { command: "kunyakuni", description: "Kun yakuni hozir" },
+        { command: "kechki", description: "21:00 dagi hisobotni yoqish/o'chirish" },
         { command: "web", description: "Ilova" },
         { command: "yordam", description: "Qo'llanma" },
       ] });
       const me = await tg("getMe", {});
       const user = me?.result?.username;
       return json({ missing, hook: hook.ok, bot: user, owner: !!c.owner_id, claim: !c.owner_id && user ? `https://t.me/${user}?start=${c.claim_code}` : null });
+    }
+
+    if (path.endsWith("/cron")) {
+      const c = await cfg(true);
+      if (!c.setup_secret || url.searchParams.get("k") !== c.setup_secret) return new Response("forbidden", { status: 403 });
+      if (url.searchParams.get("dry")) {
+        const { from, to, title, all } = await rangeRows("today");
+        return json({ caption: fitCaption("🌙 <b>Kun yakuni</b>\n\n" + summaryCaption(title, all) + await eveningPost()), photo: all.length ? chartFor("today", all, from, to, plainTitle(title)) : null });
+      }
+      if (c.evening === "off" || !c.owner_id) return json({ skipped: true });
+      await evening(Number(c.owner_id));
+      // eski takror-yozuvlarni tozalash (8 kundan eski)
+      await db.from("xr_seen").delete().lt("created_at", new Date(Date.now() - 8 * 864e5).toISOString());
+      return json({ sent: true });
     }
 
     if (path.endsWith("/tg")) {
