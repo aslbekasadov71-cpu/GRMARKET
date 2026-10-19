@@ -980,7 +980,7 @@ async function sha(s: string) {
 }
 const dupKb = (key: string) => ({ inline_keyboard: [[{ text: "✅ Ha, yana yozilsin", callback_data: `ag:${key}` }, { text: "❌ Kerak emas", callback_data: "no:" }]] });
 
-async function doVoice(chat: number, fileId: string, mime: string, force = false, uniq = "") {
+async function recordVoice(chat: number, fileId: string, mime: string, force = false, uniq = "") {
   if (!force && uniq) {
     const was = await recentDup("v:" + uniq, 7 * 24 * 60, { f: fileId, m: mime });
     if (was) { await send(chat, `⚠️ <b>Bu ovozli xabar ${dShort(new Date(Date.parse(was) + OFF).toISOString().slice(0, 10)).toLowerCase()} ${hhmm(was)} da yozilgan.</b>\nIkki marta yozilmasligi uchun to'xtatdim. Yana yozaymi?`, dupKb("v:" + uniq)); return; }
@@ -1005,7 +1005,7 @@ async function doVoice(chat: number, fileId: string, mime: string, force = false
     await send(chat, "⚠️ Xatolik: " + esc((e as Error).message) + "\n\nOvozni qayta yuboring yoki matn bilan yozing.");
   }
 }
-async function doText(chat: number, text: string, force = false) {
+async function recordText(chat: number, text: string, force = false) {
   if (!force) {
     const key = "t:" + await sha(normText(text));
     const was = await recentDup(key, 30, { t: text });
@@ -1027,6 +1027,296 @@ async function doText(chat: number, text: string, force = false) {
     console.error(e);
     await send(chat, "⚠️ Xatolik: " + esc((e as Error).message));
   }
+}
+
+/* --- 🧠 Miya: har qanday gapni suhbat ichida tushunadi va o'zi qaror qiladi --- */
+async function chatLog(role: "u" | "b", text: string) {
+  if (!text?.trim()) return;
+  await db.from("xr_chat").insert({ role, text: text.trim().slice(0, 700) });
+}
+async function chatHistory() {
+  const since = new Date(Date.now() - 10 * 3600e3).toISOString();
+  const { data } = await db.from("xr_chat").select("role,text").gte("created_at", since).order("id", { ascending: false }).limit(12);
+  return (data ?? []).reverse();
+}
+const WEEKDAY = ["yakshanba", "dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba"];
+async function brainContext() {
+  await loadStart();
+  const t = today(), ms = monthStart();
+  const [{ data: rec }, drs, hist, { data: rv }] = await Promise.all([
+    db.from("xr_expenses").select("id,kind,scope,cat,amount,note,firm,spent_on,created_at").gte("spent_on", dAgo(44)).order("created_at", { ascending: false }).limit(260),
+    debtRows(), chatHistory(),
+    db.from("xr_revizya").select("done_on,stock,cash").order("done_on", { ascending: false }).limit(3),
+  ]);
+  const rows = rec ?? [];
+  const m = calcHealth(rows, ms, t);
+  const recLines = rows.map((r: Row) => `#${r.id} ${r.spent_on} ${hhmm(r.created_at)} | ${r.kind === "savdo" ? "SAVDO" : `${r.scope}/${r.cat}`} | ${r.amount} | ${r.firm || r.note || ""}`);
+  const debtLines = debtPeople(drs).map((p) => `${p.name} — ${p.dir === "in" ? "menga qarzdor" : "men qarzdorman"}, qoldiq ${Math.round(p.bal)}; yozuvlar: ` +
+    p.rows.slice(0, 4).map((r: Row) => `d#${r.id} ${r.spent_on} ${r.kind === "pay" ? "to'lov" : "qarz"} ${r.amount}`).join(", "));
+  const text = [
+    `BUGUN: ${t}, ${WEEKDAY[new Date(t + "T00:00:00Z").getUTCDay()]}. Hisob ${START || t} dan yuritilmoqda.`,
+    `SHU OY JAMI: savdo ${m.sv}; do'kon xarajati ${m.shop}; shaxsiy ${m.me}; kommunal ${m.kom}; savdo − do'kon xarajati = ${m.foyda}; qo'lda qoldi ${m.qoldi}.`,
+    `REVIZYALAR: ` + ((rv ?? []).map((r: Row) => `${r.done_on}: tovar ${r.stock}, kassa ${r.cash}`).join("; ") || "yo'q"),
+    `YOZUVLAR (eng oxirgi qo'shilgani birinchi; #id sana vaqt | tur | summa | izoh):\n` + (recLines.join("\n") || "yo'q"),
+    `QARZLAR:\n` + (debtLines.join("\n") || "yo'q"),
+  ].join("\n\n");
+  return { text, hist };
+}
+const BRAIN = `
+=== SEN — BOTNING MIYASISAN ===
+Foydalanuvchi bilan suhbatlashadigan aqlli hisobchisan. Har bir xabarni MA'NOSIGA va SUHBAT tarixiga qarab tushun, qolipga yopishib qolma. Foydalanuvchi qisqa, imlo xatosi bilan, ruscha aralash yoki bitta fikrni bir necha xabarga bo'lib yozishi mumkin — suhbatdan to'ldir.
+Misol: oldingi xabar "lochin aka 60000", hozirgisi "nasiya oldi" → bitta qarz yozuvi (Lochin aka, in, debt, 60000). Oldingi xabarda bot "Tushunmadim" degan bo'lsa va foydalanuvchi aniqlashtirsa — endi to'g'ri yoz.
+Foydalanuvchi "yozilmadi", "noto'g'ri", "unday emas", "xato" desa — suhbat va YOZUVLAR dan nimani nazarda tutganini top: yozilmagan bo'lsa add, noto'g'ri yozilgan bo'lsa edit.
+
+actions — bajariladigan amallar ro'yxati (bir nechta bo'lishi mumkin, kerak bo'lmasa bo'sh):
+- add: yangi xarajat/savdo/qarz (items — yuqoridagi qoidalar bo'yicha). Faqat YANGI pul harakati aytilganda. Allaqachon YOZUVLAR da bor narsani qayta qo'shma.
+- edit: mavjud yozuvni tuzatish. target_id = YOZUVLAR dagi #raqam (table="expense") yoki QARZLAR dagi d#raqam (table="debt"). Faqat o'zgaradigan maydonni yoz (amount / scope / cat / note / date / kind / person), qolganini umuman yozma. "oxirgisi" = YOZUVLAR dagi birinchi qator.
+- delete: foydalanuvchi aniq o'chirishni so'rasa (target_id, table). Bot baribir tasdiq so'raydi.
+- report: hisobot ko'rsatish (range: today, yday, week, month, prev).
+- holat: do'kon foydadami-zarardami, qayerga ketyapti (range: week, month, prev).
+- debts: qarz daftarini ko'rsatish; person berilsa — shu odamning sahifasi.
+- pdf: PDF hisobot (range).
+- ustoz: chuqur buxgalteriya tahlili, o'rgatish yoki maslahat so'ralsa (question = savol).
+- revizya: revizya jami natijasi aytilsa (stock = tovar qoldig'i so'mda, cash = kassa).
+- sanoq: tovarlarni birma-bir sanab revizya qilmoqchi bo'lsa.
+- query: "qancha?", "jami?", "nechta?" kabi RAQAMLI savol — bot bazadan ANIQ hisoblaydi. Maydonlar: label (qisqa sarlavha, masalan "Sigaret · bu hafta"), kind (savdo / xarajat / hammasi), scope, cat, match (izoh yoki firma nomidagi so'z o'zaklari, vergul bilan: "sigaret", "kola,coca"), from va to (YYYY-MM-DD). Masalan: "bu hafta sigaretga qancha ketdi" → query {label:"Sigaret · bu hafta", kind:xarajat, match:"sigaret", from: shu haftaning dushanbasi, to: bugun}; "kecha savdo qancha" → query {kind:savdo, from:kecha, to:kecha}.
+
+MUHIM QOIDALAR:
+- Raqamni HECH QACHON o'zing qo'shma, ayirma yoki hisoblama — buning uchun query, holat, report yoki debts ishlat; bot aniq raqamni o'zi chiqaradi. Bitta odamning qarzi → debts (person).
+- target_id — faqat # yoki d# dan keyingi raqam (masalan "#87 2026-10-19 13:32 | dokon/tovar | 69000 | Smetana" → target_id=87, summa EMAS).
+- edit da yangi summani amount ga yoz ("79 ming qil" → amount=79000).
+- Qarz items da person — faqat ism ("Abbi"); dir va dkind ni albatta to'ldir (qaytardi → dkind=pay).
+
+reply — foydalanuvchiga o'zbek lotin yozuvida qisqa javob (1–4 gap; ro'yxat uchun "•").
+- query/holat/report/debts bo'lsa — reply bo'sh yoki raqamsiz qisqa gap (raqamni bot o'zi ko'rsatadi).
+- add/edit/delete bo'lsa — reply bo'sh (delete da bot tasdiq so'raydi, "o'chirildi" dema).
+- Salom, rahmat, oddiy gap, maslahat so'rash — qisqa samimiy javob.
+- Summa yoki kimligi noaniq bo'lsa — hech narsa yozma, reply da aniq qisqa savol ber.
+- Ma'lumot yo'q bo'lsa — ochiq ayt, raqam o'ylab topma.`;
+const B_ACT = { type: "OBJECT", properties: {
+  type: { type: "STRING", enum: ["add", "edit", "delete", "query", "report", "holat", "debts", "pdf", "ustoz", "revizya", "sanoq"] },
+  items: G_ITEMS, target_id: { type: "INTEGER" }, table: { type: "STRING", enum: ["expense", "debt"] },
+  amount: { type: "INTEGER" }, scope: { type: "STRING", enum: SCOPES }, cat: { type: "STRING", enum: ALL_CATS }, note: { type: "STRING" },
+  date: { type: "STRING" }, kind: { type: "STRING", enum: ["xarajat", "savdo", "hammasi"] }, person: { type: "STRING" },
+  label: { type: "STRING" }, match: { type: "STRING" }, from: { type: "STRING" }, to: { type: "STRING" },
+  range: { type: "STRING", enum: ["today", "yday", "week", "month", "prev", "all"] }, question: { type: "STRING" }, stock: { type: "INTEGER" }, cash: { type: "INTEGER" },
+}, required: ["type"], propertyOrdering: ["type", "target_id", "table", "amount", "items", "label", "kind", "scope", "cat", "match", "from", "to", "range", "person", "note", "date", "question", "stock", "cash"] };
+// Model ba'zi maydonlarni tashlab ketsa - matndan aniq to'ldiramiz
+function periodOf(t: string): [string, string] | null {
+  const s = pkey(t);
+  if (/bugun/.test(s)) return [today(), today()];
+  if (/kecha/.test(s)) return [dAgo(1), dAgo(1)];
+  const wd = (new Date(today() + "T00:00:00Z").getUTCDay() + 6) % 7;
+  if (/o'?tgan hafta/.test(s)) return [dAgo(wd + 7), dAgo(wd + 1)];
+  if (/(bu|shu) ?hafta|haftada/.test(s)) return [dAgo(Math.max(wd, 6)), today()];
+  if (/o'?tgan oy/.test(s)) { const r = rangeOf("prev"); return [r[0], r[1]]; }
+  if (/(bu|shu) ?oy|oyda/.test(s)) return [monthStart(), today()];
+  const m = s.match(/(\d+)\s*kun/);
+  if (m && +m[1] > 0 && +m[1] < 400) return [dAgo(+m[1] - 1), today()];
+  return null;
+}
+async function fixActions(acts: Row[], heard: string) {
+  for (const a of acts) {
+    if (a.type === "add") a.items = await fixDebtItems(Array.isArray(a.items) ? a.items : [], heard);
+    if (a.type === "query") { const pp = periodOf(heard); if (pp) [a.from, a.to] = pp; }
+    if (a.type === "edit" && !(Number(a.amount) > 0) && !a.scope && !a.cat && !a.note && !okDate(a.date) && !a.person && !a.kind) { const v = parseSum(heard.replace(/#\d+/g, "")); if (v > 0) a.amount = v; }
+  }
+  return acts;
+}
+async function fixDebtItems(items: Row[], heard: string) {
+  const isQ = (x: Row) => x.kind === "qarz" || x.cat === "qarz" || x.person;
+  if (!items.some(isQ)) return items;
+  const ppl = debtPeople(await debtRows()), h = pkey(heard), seen = new Set<string>();
+  const res: Row[] = [];
+  for (const x of items) {
+    if (!isQ(x)) { res.push(x); continue; }
+    let nm = (String(x.person ?? "").match(/^[\p{L}'\u02bb\u02bc\u2018\u2019 .-]+/u)?.[0] ?? "").replace(/(\p{Ll})\p{Lu}.*$/u, "$1").replace(/[^\p{L}]+$/u, "").trim().split(/\s+/).slice(0, 4).join(" ");
+    // AI qo'shib yuborgan, gapda yo'q so'zlarni olib tashlash ("Abbi Manuel" -> "Abbi")
+    const hw = h.split(/[^\p{L}']+/u).filter(Boolean);
+    const kept = nm.split(" ").filter((w) => { const k = pkey(w).slice(0, Math.max(3, Math.min(5, w.length - 1))); return hw.some((x) => x.startsWith(k)) || /^(aka|opa|xola|ota|ona)$/i.test(w); });
+    if (kept.length) nm = kept.join(" ");
+    const known = ppl.find((q) => pkey(q.name) === pkey(nm));
+    if (known) nm = known.name;
+    if (!nm) continue;
+    const y: Row = { ...x, kind: "qarz", person: nm };
+    if (y.dkind !== "pay" && y.dkind !== "debt") y.dkind = /qaytar|to'?la|uzdi|berdi\b|tushirdi/.test(h) ? "pay" : "debt";
+    if (y.dir !== "in" && y.dir !== "out") {
+      const ex = ppl.filter((q) => pkey(q.name) === pkey(nm));
+      y.dir = ex.length === 1 ? ex[0].dir : /qarzim|(dan|ga) .*(oldim|qarz oldim|berdim)|men qarz/.test(h) ? "out" : "in";
+    }
+    const k = [pkey(nm), y.dir, y.dkind, y.amount].join("|");
+    if (seen.has(k)) continue;
+    seen.add(k); res.push(y);
+  }
+  return res;
+}
+const B_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-flash-latest"];
+async function brain(text: string | null, audio?: { b64: string; mime: string }, models?: string[]) {
+  await Promise.all([cfg(), loadPeople()]);
+  const ms = models?.length ? models : CFG?.brain_model ? [CFG.brain_model, ...B_MODELS.filter((x) => x !== CFG!.brain_model)] : B_MODELS;
+  if (!GEMINI_KEY) throw new Error("Gemini kaliti yo'q");
+  const ctx = await brainContext();
+  const hist = ctx.hist.map((h: Row) => `${h.role === "u" ? "Foydalanuvchi" : "Bot"}: ${h.text}`).join("\n");
+  const parts: Row[] = [{ text: `MA'LUMOTLAR:\n${ctx.text}\n\nSUHBAT (oxirgi xabarlar):\n${hist || "yo'q"}\n\nYANGI XABAR${audio ? " (audio — aytilganini transcript ga aynan yoz)" : ""}:` }];
+  parts.push(audio ? { inline_data: { mime_type: audio.mime, data: audio.b64 } } : { text: String(text).slice(0, 3000) });
+  const props: Row = { actions: { type: "ARRAY", items: B_ACT }, reply: { type: "STRING" } };
+  if (audio) props.transcript = { type: "STRING" };
+  const txt = await gemini({
+    system_instruction: { parts: [{ text: SYSTEM(today()) + "\n" + BRAIN }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 6144, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: props, required: audio ? ["transcript", "actions", "reply"] : ["actions", "reply"] } },
+  }, ms);
+  const o = JSON.parse(txt || "{}");
+  return { heard: String(audio ? o.transcript ?? "" : text ?? "").trim(), actions: (Array.isArray(o.actions) ? o.actions : []) as Row[], reply: String(o.reply ?? "").trim() };
+}
+// Raqamli savollar — bazadan aniq hisob (AI o'zi qo'shmaydi)
+async function runQuery(a: Row) {
+  let from = okDate(a.from) ? a.from : dAgo(29), to = okDate(a.to) ? a.to : today();
+  if (from > to) [from, to] = [to, from];
+  const { data } = await db.from("xr_expenses").select("*").gte("spent_on", from).lte("spent_on", to).order("spent_on", { ascending: false }).order("created_at", { ascending: false }).limit(5000);
+  let rs: Row[] = data ?? [];
+  if (a.kind === "savdo" || a.cat === "savdo") rs = rs.filter((r) => r.kind === "savdo");
+  else if (a.kind === "xarajat") rs = rs.filter((r) => r.kind !== "savdo");
+  if (!a.match && SCOPES.includes(a.scope) && a.kind !== "savdo") rs = rs.filter((r) => r.kind !== "savdo" && r.scope === a.scope);
+  if (!a.match && a.cat && a.cat !== "savdo" && a.cat !== "qarz" && ALL_CATS.includes(a.cat)) rs = rs.filter((r) => r.cat === a.cat);
+  const norm = (x: string) => pkey(x).replace(/['\s-]/g, "");
+  const words = String(a.match ?? "").split(/[,;/]+/).map(norm).filter((w) => w.length >= 2);
+  if (words.length) rs = rs.filter((r) => { const t = norm(`${r.note ?? ""} ${r.firm ?? ""}`); return words.some((w) => t.includes(w)); });
+  const sum = total(rs), per = from === to ? dateUz(from) : `${dateUz(from)} – ${dateUz(to)}`;
+  let t = `🔎 <b>${esc(a.label || "Hisob")}</b> · <i>${per}</i>\n`;
+  if (!rs.length) return t + "Bu davrda bunday yozuv topilmadi.";
+  t += `<b>${som(sum)}</b> · ${rs.length} ta yozuv\n\n` + rs.slice(0, 15).map((r) => `${icon(r)} ${dShort(r.spent_on)} · ${what(r)} — <b>${fmt(+r.amount)}</b>`).join("\n");
+  if (rs.length > 15) t += `\n<i>… yana ${rs.length - 15} ta</i>`;
+  return t;
+}
+const okDate = (d: unknown) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= today() && d >= dAgo(400);
+// Miyaning qarorini bajarish. Natija: biror narsa yozildimi
+async function think(chat: number, inp: { text?: string; audio?: { b64: string; mime: string }; force?: boolean; dupKey?: string; dupVal?: Row }): Promise<boolean> {
+  await tg("sendChatAction", { chat_id: chat, action: "typing" });
+  const b = await brain(inp.text ?? null, inp.audio);
+  const heard = b.heard;
+  if (inp.audio && !heard && !b.actions.length) { await send(chat, "🤔 Ovozni eshitmadim. Qaytadan, aniqroq ayting."); return false; }
+  await chatLog("u", (inp.audio ? "[ovoz] " : "") + heard);
+  const out: string[] = [], log: string[] = [], after: (() => Promise<unknown>)[] = [];
+  let kb: unknown = mainKb(), saved = false;
+  await fixActions(b.actions, heard);
+  for (const a of b.actions.slice(0, 8)) {
+    try {
+      if (a.type === "add") {
+        const res: Row = await saveItems(Array.isArray(a.items) ? a.items : [], "", heard, inp.audio ? "tg_voice" : "tg_text", !!inp.force);
+        if (res.dup) {
+          const key = inp.dupKey || "t:" + await sha(normText(heard));
+          await db.from("xr_seen").upsert({ key, val: inp.dupVal ?? { t: heard } });
+          out.push(dupText(res.dup)); kb = dupKb(key); log.push("bu yozuvlar takror bo'lgani uchun so'radi");
+        } else if (res.saved.length || res.debts?.length) {
+          saved = true;
+          out.push(await savedText(res.saved, res.debts)); kb = itemKb(res.saved, res.debts);
+          log.push("Yozdi: " + [...res.saved.map((r: Row) => `#${r.id} ${r.kind === "savdo" ? "savdo" : r.scope + "/" + r.cat} ${r.amount} ${r.firm || r.note || ""}`), ...(res.debts ?? []).map((d: Row) => `d#${d.id} ${d.person} ${d.dir}/${d.kind} ${d.amount}`)].join("; "));
+        }
+      } else if (a.type === "edit" && Number(a.target_id) > 0) {
+        const id = Number(a.target_id);
+        if (a.table === "debt") {
+          const { data: d } = await db.from("xr_debts").select("*").eq("id", id).maybeSingle();
+          if (!d) { out.push("⚠️ Tuzatiladigan qarz yozuvi topilmadi."); continue; }
+          const upd: Row = {};
+          if (Number(a.amount) > 0) upd.amount = Math.round(Number(a.amount));
+          if (okDate(a.date)) upd.spent_on = a.date;
+          if (a.person) upd.person = titleCase(String(a.person)).slice(0, 60);
+          if (a.note) upd.note = String(a.note).slice(0, 120);
+          if (!Object.keys(upd).length) continue;
+          await db.from("xr_debts").update(upd).eq("id", id);
+          saved = true;
+          out.push(`✏️ <b>Tuzatildi</b> · 📒 ${esc(upd.person ?? d.person)} ${KL[d.dir][d.kind]} — <b>${fmt(upd.amount ?? d.amount)}</b>${upd.amount ? ` <i>(${fmt(d.amount)} edi)</i>` : ""}`);
+          log.push(`Tuzatdi d#${id}`);
+        } else {
+          const { data: r } = await db.from("xr_expenses").select("*").eq("id", id).maybeSingle();
+          if (!r) { out.push("⚠️ Tuzatiladigan yozuv topilmadi."); continue; }
+          const p: Row = { ...r, date: r.spent_on };
+          if (Number(a.amount) > 0) p.amount = Math.round(Number(a.amount));
+          if (a.kind === "savdo" || a.kind === "xarajat") p.kind = a.kind;
+          if (SCOPES.includes(a.scope) && a.scope !== r.scope) { p.scope = a.scope; p.cat = CATS[a.scope][a.cat] ? a.cat : swapCat(a.scope, r.cat); }
+          else if (a.cat && CATS[p.scope]?.[a.cat]) p.cat = a.cat;
+          if (a.note) p.note = String(a.note);
+          if (okDate(a.date)) p.date = a.date;
+          const row: Row = cleanItem(p, r.raw, r.source);
+          delete row.raw; delete row.source;
+          const { data: nr, error } = await db.from("xr_expenses").update(row).eq("id", id).select().single();
+          if (error) throw error;
+          saved = true;
+          out.push(`✏️ <b>Tuzatildi</b>\n${icon(nr)} ${what(nr)} — <b>${fmt(+nr.amount)}</b>${+nr.amount !== +r.amount ? ` <i>(${fmt(+r.amount)} edi)</i>` : ""}\n     <i>${nr.kind === "savdo" ? "💰 Savdo" : `${SCOPE_S[nr.scope]} · ${catLabel(nr.scope, nr.cat).replace(/^\S+ /, "")}`} · ${dShort(nr.spent_on)}</i>`);
+          kb = itemKb([nr]); log.push(`Tuzatdi #${id}`);
+        }
+      } else if (a.type === "delete" && Number(a.target_id) > 0) {
+        const id = Number(a.target_id);
+        if (a.table === "debt") {
+          const { data: d } = await db.from("xr_debts").select("*").eq("id", id).maybeSingle();
+          if (!d) { out.push("Bu yozuv allaqachon yo'q."); continue; }
+          out.push(`🗑 <b>O'chiraymi?</b>\n📒 ${esc(d.person)} ${KL[d.dir][d.kind]} — ${fmt(+d.amount)} · ${dShort(d.spent_on)}`);
+          kb = { inline_keyboard: [[{ text: "🗑 Ha, o'chir", callback_data: `dl:${id}` }, { text: "❌ Yo'q", callback_data: "no:" }]] };
+        } else {
+          const { data: r } = await db.from("xr_expenses").select("*").eq("id", id).maybeSingle();
+          if (!r) { out.push("Bu yozuv allaqachon yo'q."); continue; }
+          out.push(`🗑 <b>O'chiraymi?</b>\n${icon(r)} ${what(r)} — ${fmt(+r.amount)} · ${dShort(r.spent_on)}`);
+          kb = { inline_keyboard: [[{ text: "🗑 Ha, o'chir", callback_data: `del:${id}` }, { text: "❌ Yo'q", callback_data: "no:" }]] };
+        }
+        log.push(`O'chirishni so'radi ${a.table === "debt" ? "d#" : "#"}${id}`);
+      } else if (a.type === "query") {
+        out.push(await runQuery(a)); log.push(`hisobladi: ${a.label ?? a.match ?? ""}`);
+      } else if (a.type === "report") {
+        const r = ["today", "yday", "week", "month", "prev"].includes(a.range) ? a.range : "today";
+        after.push(() => sendReport(chat, r)); log.push(`hisobot ${r}`);
+      } else if (a.type === "holat") {
+        const r = ["week", "month", "prev"].includes(a.range) ? a.range : "month";
+        after.push(() => sendHealth(chat, r)); log.push(`holat ${r}`);
+      } else if (a.type === "debts") {
+        const who = pkey(String(a.person ?? ""));
+        const p = who ? debtPeople(await debtRows()).find((x) => pkey(x.name).includes(who) || who.includes(pkey(x.name))) : null;
+        after.push(async () => { const v = p ? await personView(p.lastId) : null; const w = v ?? await debtsView("in"); return send(chat, w.t, w.kb); });
+        log.push("qarzlarni ko'rsatdi");
+      } else if (a.type === "pdf") {
+        const r = PDF_R.some(([k]) => k === a.range) || a.range === "yday" ? a.range : "month";
+        after.push(() => sendPdf(chat, r)); log.push(`pdf ${r}`);
+      } else if (a.type === "ustoz") {
+        after.push(() => sendUstoz(chat, String(a.question || heard))); log.push("ustozga yo'naltirdi");
+      } else if (a.type === "revizya") {
+        if (Number(a.stock) > 0) {
+          const cur = await saveRevizya(Math.round(Number(a.stock)), Math.round(Number(a.cash) || 0), heard);
+          const { text: rt } = await revizyaCalc(cur);
+          out.push(rt); kb = { inline_keyboard: [[{ text: "🧑‍🏫 Ustoz tahlili", callback_data: "us:" }, { text: "🗑 O'chirish", callback_data: `rvd:${cur.id}` }]] };
+          saved = true; log.push(`revizya yozdi: tovar ${a.stock}`);
+        } else after.push(() => sendRevizyaGuide(chat));
+      } else if (a.type === "sanoq") {
+        after.push(() => stockStart(chat)); log.push("sanoqni boshladi");
+      }
+    } catch (e) { console.error("amal", a.type, e); out.push("⚠️ " + esc((e as Error).message)); }
+  }
+  const head = inp.audio ? `🎤 <i>«${esc(heard.slice(0, 600))}»</i>` : "";
+  let reply = b.reply ? tgFormat(b.reply) : "";
+  if (!out.length && !after.length && !reply) reply = "🤔 Tushunmadim. Masalan: «svetga 250 ming to'ladim», «Alisher 85 ming nasiya oldi» yoki savol bering: «kecha qancha savdo bo'ldi?»";
+  const msg = [head, reply, ...out].filter(Boolean).join("\n\n");
+  if (msg && (reply || out.length || !after.length)) await send(chat, msg.length > 4000 ? msg.slice(0, 3990) + "…" : msg, kb);
+  else if (head && after.length) await send(chat, head);
+  for (const f of after) { try { await f(); } catch (e) { console.error(e); await send(chat, "⚠️ " + esc((e as Error).message)); } }
+  await chatLog("b", [b.reply, ...log].filter(Boolean).join(" | ") || "tushunmadi");
+  return saved;
+}
+async function doText(chat: number, text: string, force = false) {
+  try { await think(chat, { text, force }); }
+  catch (e) { console.error("miya", e); await recordText(chat, text, force); }   // miya ishlamasa — eski usul
+}
+async function doVoice(chat: number, fileId: string, mime: string, force = false, uniq = "") {
+  if (!force && uniq) {
+    const was = await recentDup("v:" + uniq, 7 * 24 * 60, { f: fileId, m: mime });
+    if (was) { await send(chat, `⚠️ <b>Bu ovozli xabar ${dShort(new Date(Date.parse(was) + OFF).toISOString().slice(0, 10)).toLowerCase()} ${hhmm(was)} da yozilgan.</b>\nIkki marta yozilmasligi uchun to'xtatdim. Yana yozaymi?`, dupKb("v:" + uniq)); return; }
+  }
+  try {
+    await tg("sendChatAction", { chat_id: chat, action: "typing" });
+    const f = await tg("getFile", { file_id: fileId });
+    const audio = await fetch(`https://api.telegram.org/file/bot${TG_TOKEN}/${f.result.file_path}`).then((r) => r.arrayBuffer());
+    const key = "v:" + (uniq || await sha(fileId));
+    const ok = await think(chat, { audio: { b64: encodeBase64(new Uint8Array(audio)), mime: mime || "audio/ogg" }, force, dupKey: key, dupVal: { f: fileId, m: mime } });
+    if (ok && uniq) await markSaved("v:" + uniq, { f: fileId, m: mime });
+  } catch (e) { console.error("miya", e); await recordVoice(chat, fileId, mime, force, ""); }
 }
 function dupText(d: Row) {
   const items = [
@@ -1648,6 +1938,9 @@ async function onTg(upd: Row) {
   // «ustoz, …» — savol ustozga
   const uq = text.match(/^\s*(ustoz|buxgalter|домла|domla)[\s,:!-]*(.*)$/is);
   if (uq) { await sendUstoz(chat, uq[2].trim()); return; }
+  // qolgan hamma narsa — miyaga: o'zi tushunadi va qaror qiladi
+  await doText(chat, text);
+  return;
   // revizya natijasi: «revizya: tovar 45 mln, kassa 3 mln»
   if (isRevizya(text) && /\d/.test(text)) {
     const { stock, cash } = parseRevizya(text);
@@ -1720,6 +2013,14 @@ async function onApi(req: Request) {
       const { data, error } = await db.from("xr_debts").insert(d).select().single();
       if (error) throw error;
       return json({ debt: data });
+    }
+    case "brain_dry": {   // sinov: miya nima qaror qilishini ko'rish (hech narsa yozmaydi)
+      const t0 = Date.now();
+      const r = await brain(String(b.text ?? ""), undefined, b.model ? [String(b.model)] : undefined);
+      const raw = JSON.parse(JSON.stringify(r.actions));
+      await fixActions(r.actions, r.heard);
+      const q = r.actions.find((a: Row) => a.type === "query");
+      return json({ ...r, raw, ms: Date.now() - t0, query: q ? await runQuery(q) : undefined });
     }
     case "ustoz": {
       const q = String(b.q ?? "").trim();
