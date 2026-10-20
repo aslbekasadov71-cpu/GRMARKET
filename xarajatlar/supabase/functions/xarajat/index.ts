@@ -1044,7 +1044,7 @@ async function brainContext() {
   await loadStart();
   const t = today(), ms = monthStart();
   const [{ data: rec }, drs, hist, { data: rv }] = await Promise.all([
-    db.from("xr_expenses").select("id,kind,scope,cat,amount,note,firm,spent_on,created_at").gte("spent_on", dAgo(44)).order("created_at", { ascending: false }).limit(260),
+    db.from("xr_expenses").select("id,kind,scope,cat,amount,note,firm,spent_on,created_at").gte("spent_on", dAgo(21)).order("created_at", { ascending: false }).limit(90),
     debtRows(), chatHistory(),
     db.from("xr_revizya").select("done_on,stock,cash").order("done_on", { ascending: false }).limit(3),
   ]);
@@ -1052,7 +1052,7 @@ async function brainContext() {
   const m = calcHealth(rows, ms, t);
   const recLines = rows.map((r: Row) => `#${r.id} ${r.spent_on} ${hhmm(r.created_at)} | ${r.kind === "savdo" ? "SAVDO" : `${r.scope}/${r.cat}`} | ${r.amount} | ${r.firm || r.note || ""}`);
   const debtLines = debtPeople(drs).map((p) => `${p.name} — ${p.dir === "in" ? "menga qarzdor" : "men qarzdorman"}, qoldiq ${Math.round(p.bal)}; yozuvlar: ` +
-    p.rows.slice(0, 4).map((r: Row) => `d#${r.id} ${r.spent_on} ${r.kind === "pay" ? "to'lov" : "qarz"} ${r.amount}`).join(", "));
+    p.rows.slice(0, 2).map((r: Row) => `d#${r.id} ${r.spent_on} ${r.kind === "pay" ? "to'lov" : "qarz"} ${r.amount}`).join(", "));
   const text = [
     `BUGUN: ${t}, ${WEEKDAY[new Date(t + "T00:00:00Z").getUTCDay()]}. Hisob ${START || t} dan yuritilmoqda.`,
     `SHU OY JAMI: savdo ${m.sv}; do'kon xarajati ${m.shop}; shaxsiy ${m.me}; kommunal ${m.kom}; savdo − do'kon xarajati = ${m.foyda}; qo'lda qoldi ${m.qoldi}.`,
@@ -1136,9 +1136,13 @@ async function fixDebtItems(items: Row[], heard: string) {
     const kept = nm.split(" ").filter((w) => { const k = pkey(w).slice(0, Math.max(3, Math.min(5, w.length - 1))); return hw.some((x) => x.startsWith(k)) || /^(aka|opa|xola|ota|ona)$/i.test(w); });
     if (kept.length) nm = kept.join(" ");
     const known = ppl.find((q) => pkey(q.name) === pkey(nm));
-    if (known) nm = known.name;
+    nm = nm.split(" ").map((w) => w.replace(/^(aka|opa|xola|ota|ona|uka)(ga|dan|ni|ning|da|lar|lardan|larga)$/i, "$1")).join(" ");
+    if (/^(aka|opa|xola|ota|ona|uka)$/i.test(nm)) continue;   // faqat "Aka" — ism emas
+    const known2 = known ?? ppl.find((q) => pkey(q.name) === pkey(nm));
+    if (known2) nm = known2.name;
     if (!nm) continue;
     const y: Row = { ...x, kind: "qarz", person: nm };
+    if (/qarzim(dan|ni)|qaytar|uzdi|to'?ladim|to'?ladi\b/.test(h) && !/nasiya|qarzga|qarz (oldi|berdim)/.test(h)) y.dkind = "pay";
     if (y.dkind !== "pay" && y.dkind !== "debt") y.dkind = /qaytar|to'?la|uzdi|berdi\b|tushirdi/.test(h) ? "pay" : "debt";
     if (y.dir !== "in" && y.dir !== "out") {
       const ex = ppl.filter((q) => pkey(q.name) === pkey(nm));
@@ -1150,24 +1154,48 @@ async function fixDebtItems(items: Row[], heard: string) {
   }
   return res;
 }
-const B_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-flash-latest"];
-async function brain(text: string | null, audio?: { b64: string; mime: string }, models?: string[]) {
+const B_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.6-flash"];
+// Bir nechta modelga navbat bilan (0 / 1.2 / 2.5 s) so'rov yuboriladi, qaysi biri birinchi to'g'ri javob bersa — o'sha olinadi
+async function geminiRace(body: Row, models: string[], limitMs = 25000): Promise<string> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), limitMs);
+  const one = async (model: string, delay: number) => {
+    if (delay) await new Promise((ok) => setTimeout(ok, delay));
+    if (ctl.signal.aborted) throw new Error("bekor");
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal,
+    });
+    const j: Row = await r.json().catch(() => ({}));
+    if (!r.ok) { console.error("Gemini", model, r.status, j?.error?.message ?? ""); throw new Error(model + " " + r.status); }
+    const fr = j.candidates?.[0]?.finishReason;
+    const out = (j.candidates?.[0]?.content?.parts ?? []).filter((p: Row) => !p.thought).map((p: Row) => p.text ?? "").join("");
+    if (!out || fr === "MAX_TOKENS") throw new Error(model + " chala");
+    JSON.parse(out);
+    console.log("miya javobi:", model, delay);
+    return out;
+  };
+  try { return await Promise.any(models.map((m, i) => one(m, [0, 700, 1500, 2500][i] ?? 2500))); }
+  catch { throw new Error("Gemini hozir band"); }
+  finally { clearTimeout(timer); ctl.abort(); }
+}
+async function brain(text: string | null, audio?: { b64: string; mime: string }, models?: string[], image?: { b64: string; mime: string }) {
   await Promise.all([cfg(), loadPeople()]);
   const ms = models?.length ? models : CFG?.brain_model ? [CFG.brain_model, ...B_MODELS.filter((x) => x !== CFG!.brain_model)] : B_MODELS;
   if (!GEMINI_KEY) throw new Error("Gemini kaliti yo'q");
   const ctx = await brainContext();
   const hist = ctx.hist.map((h: Row) => `${h.role === "u" ? "Foydalanuvchi" : "Bot"}: ${h.text}`).join("\n");
   const parts: Row[] = [{ text: `MA'LUMOTLAR:\n${ctx.text}\n\nSUHBAT (oxirgi xabarlar):\n${hist || "yo'q"}\n\nYANGI XABAR${audio ? " (audio — aytilganini transcript ga aynan yoz)" : ""}:` }];
-  parts.push(audio ? { inline_data: { mime_type: audio.mime, data: audio.b64 } } : { text: String(text).slice(0, 3000) });
+  if (image) parts.push({ text: `[RASM — chek, nakladnoy yoki yozuv bo'lishi mumkin: undagi summani (jami) va nimaligini o'qib, mos amal qil. Izoh: ${text || "yo'q"}]` }, { inline_data: { mime_type: image.mime, data: image.b64 } });
+  else parts.push(audio ? { inline_data: { mime_type: audio.mime, data: audio.b64 } } : { text: String(text).slice(0, 3000) });
   const props: Row = { actions: { type: "ARRAY", items: B_ACT }, reply: { type: "STRING" } };
   if (audio) props.transcript = { type: "STRING" };
-  const txt = await gemini({
+  const txt = await geminiRace({
     system_instruction: { parts: [{ text: SYSTEM(today()) + "\n" + BRAIN }] },
     contents: [{ role: "user", parts }],
     generationConfig: { temperature: 0.2, maxOutputTokens: 6144, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: props, required: audio ? ["transcript", "actions", "reply"] : ["actions", "reply"] } },
-  }, ms);
+  }, ms, audio || image ? 40000 : 25000);
   const o = JSON.parse(txt || "{}");
-  return { heard: String(audio ? o.transcript ?? "" : text ?? "").trim(), actions: (Array.isArray(o.actions) ? o.actions : []) as Row[], reply: String(o.reply ?? "").trim() };
+  return { heard: String(audio ? o.transcript ?? "" : image ? (text ? text + " " : "") + "[rasm]" : text ?? "").trim(), actions: (Array.isArray(o.actions) ? o.actions : []) as Row[], reply: String(o.reply ?? "").trim() };
 }
 // Raqamli savollar — bazadan aniq hisob (AI o'zi qo'shmaydi)
 async function runQuery(a: Row) {
@@ -1190,10 +1218,48 @@ async function runQuery(a: Row) {
   return t;
 }
 const okDate = (d: unknown) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= today() && d >= dAgo(400);
+// ⚡ Tez yo'l: "ayolimga 30000", "sigaretga 1 246 000", "biolife 200000" — AI kutmasdan, oldingi yozuvlarga qarab darhol
+const STOP = new Set(["berdim", "berildi", "oldim", "olindi", "toladim", "to'ladim", "tolandi", "to'landi", "som", "so'm", "sum", "ming", "mln", "million", "uchun", "pul", "puli", "pulga", "xarajat", "harajat", "qildim", "ketdi", "yana", "va", "ham", "bugun", "bugungi"]);
+const stem = (w: string) => pkey(w).replace(/['\u02bb\u02bc]/g, "").replace(/(larga|lardan|lariga|ning|imga|iga|dan|ga|ka|qa|ni|ga)$/, "");
+async function quick(text: string): Promise<Row[] | null> {
+  const t = text.trim();
+  if (t.length > 70 || /\?|qancha|necha|o'?chir|tuzat|xato|noto|oxirgi|qil\b|ustoz|hisobot|holat|pdf|revizy|sanoq|qarz|nasiya|qaytar|kecha|o'tgan|otgan|ertaga|kassadan|dollar|\$/i.test(t)) return null;
+  const tn = t.replace(/(\d)[\s.,](?=\d{3}\b)/g, "$1");
+  const nums = tn.match(/\d+(?:[.,]\d+)?/g) ?? [];
+  const withUnit = tn.match(/\d+(?:[.,]\d+)?\s*(mln|million|milion|ming|k)\b/gi) ?? [];
+  if (!(nums.length === 1 || (nums.length <= 3 && withUnit.length === nums.length))) return null;
+  const amount = parseSum(t);
+  if (!(amount >= 500)) return null;
+  if (/savdo|tushum/i.test(t)) return [{ kind: "savdo", scope: "dokon", cat: "savdo", amount, note: "" }];
+  if (/^\s*(o'?zimga|o'?zim uchun|shaxsiy)\b/i.test(t) && t.split(/\s+/).length <= 4) return [{ kind: "xarajat", scope: "shaxsiy", cat: "boshqa", amount, note: "O'zimga" }];
+  const words = t.replace(/\d[\d\s.,]*\s*(mln|million|ming|k|so'?m|sum)?/gi, " ").split(/[^\p{L}'\u02bb\u02bc]+/u).filter((w) => w.length >= 3 && !STOP.has(pkey(w)));
+  if (!words.length || words.length > 4) return null;
+  const stems = words.map(stem).filter((w) => w.length >= 3);
+  if (!stems.length) return null;
+  // qarzdor ismi bo'lsa — miyaga
+  const { data: dn } = await db.from("xr_debts").select("person").limit(2000);
+  if ((dn ?? []).some((d: Row) => stems.some((s) => stem(String(d.person).split(" ")[0]) === s))) return null;
+  // oldingi yozuvlardan o'rganish
+  const { data: past } = await db.from("xr_expenses").select("scope,cat,note,firm,kind").neq("kind", "savdo").order("created_at", { ascending: false }).limit(500);
+  const hit = (past ?? []).find((r: Row) => { const ws = `${r.firm ?? ""} ${r.note ?? ""}`.split(/[^\p{L}'\u02bb\u02bc]+/u).map(stem).filter(Boolean); return stems.some((s) => ws.some((w) => w === s || (s.length >= 5 && w.startsWith(s.slice(0, 5))))); });
+  const nice = words.join(" ").replace(/^./, (c) => c.toUpperCase());
+  if (hit) return [{ kind: "xarajat", scope: hit.scope, cat: hit.cat, amount, firm: hit.firm ?? "", note: hit.firm ? "" : (hit.note && hit.note.split(" ").length <= 3 ? hit.note : nice) }];
+  const k = KW.find(([re]) => re.test(t));
+  if (!k) return null;
+  let scope = k[1], cat = k[2];
+  if (scope !== "kommunal" && /\buy(ga|imga)?\b|o'?zimga|shaxsiy|oilaga|ayolimga|xotinimga/i.test(t)) { scope = "shaxsiy"; if (!CATS[scope][cat]) cat = swapCat(scope, cat); }
+  return [{ kind: "xarajat", scope, cat, amount, note: nice }];
+}
+function keepTyping(chat: number) {
+  const id = setInterval(() => { tg("sendChatAction", { chat_id: chat, action: "typing" }).catch(() => {}); }, 4500);
+  return () => clearInterval(id);
+}
 // Miyaning qarorini bajarish. Natija: biror narsa yozildimi
-async function think(chat: number, inp: { text?: string; audio?: { b64: string; mime: string }; force?: boolean; dupKey?: string; dupVal?: Row }): Promise<boolean> {
+async function think(chat: number, inp: { text?: string; audio?: { b64: string; mime: string }; image?: { b64: string; mime: string }; force?: boolean; dupKey?: string; dupVal?: Row }): Promise<boolean> {
   await tg("sendChatAction", { chat_id: chat, action: "typing" });
-  const b = await brain(inp.text ?? null, inp.audio);
+  const stop = keepTyping(chat);
+  let b: { heard: string; actions: Row[]; reply: string };
+  try { b = await brain(inp.text ?? null, inp.audio, undefined, inp.image); } finally { stop(); }
   const heard = b.heard;
   if (inp.audio && !heard && !b.actions.length) { await send(chat, "🤔 Ovozni eshitmadim. Qaytadan, aniqroq ayting."); return false; }
   await chatLog("u", (inp.audio ? "[ovoz] " : "") + heard);
@@ -1301,8 +1367,43 @@ async function think(chat: number, inp: { text?: string; audio?: { b64: string; 
   return saved;
 }
 async function doText(chat: number, text: string, force = false) {
+  // 1) oddiy yozuv — darhol (AI siz)
+  try {
+    const q = await quick(text);
+    if (q) {
+      const res: Row = await saveItems(q, "", text, "tg_text", force);
+      if (res.dup) {
+        const key = "t:" + await sha(normText(text));
+        await db.from("xr_seen").upsert({ key, val: { t: text } });
+        await send(chat, dupText(res.dup), dupKb(key));
+        return;
+      }
+      if (res.saved.length) {
+        await send(chat, await savedText(res.saved, res.debts), itemKb(res.saved, res.debts));
+        await chatLog("u", text);
+        await chatLog("b", "Yozdi: " + res.saved.map((r: Row) => `#${r.id} ${r.kind === "savdo" ? "savdo" : r.scope + "/" + r.cat} ${r.amount} ${r.firm || r.note || ""}`).join("; "));
+        return;
+      }
+    }
+  } catch (e) { console.error("tez yo'l", e); }
+  // 2) qolgani — miyaga
   try { await think(chat, { text, force }); }
-  catch (e) { console.error("miya", e); await recordText(chat, text, force); }   // miya ishlamasa — eski usul
+  catch (e) {
+    console.error("miya", e);
+    // AI band bo'lsa — oddiy tahlilchi bilan darhol yozamiz
+    const items = simpleParse(text).items;
+    const res: Row = items.length ? await saveItems(items, "", text, "tg_text", force) : { saved: [], debts: [] };
+    if (res.saved?.length || res.debts?.length) await send(chat, await savedText(res.saved, res.debts) + "\n\n<i>⚡ AI band edi — oddiy usulda yozdim. Bo'limi noto'g'ri bo'lsa, pastdagi tugma bilan ko'chiring.</i>", itemKb(res.saved, res.debts));
+    else await send(chat, "⏳ AI hozir juda band. Bir daqiqadan keyin qayta yozing yoki qisqaroq yozing: «sigaretga 500 ming».");
+  }
+}
+async function doPhoto(chat: number, fileId: string, caption: string) {
+  try {
+    await tg("sendChatAction", { chat_id: chat, action: "typing" });
+    const f = await tg("getFile", { file_id: fileId });
+    const img = await fetch(`https://api.telegram.org/file/bot${TG_TOKEN}/${f.result.file_path}`).then((r) => r.arrayBuffer());
+    await think(chat, { text: caption, image: { b64: encodeBase64(new Uint8Array(img)), mime: "image/jpeg" } });
+  } catch (e) { console.error("rasm", e); await send(chat, "⚠️ Rasmni o'qiy olmadim (AI band bo'lishi mumkin). Summasini yozib yuboring: «Yubileniy 325000»."); }
 }
 async function doVoice(chat: number, fileId: string, mime: string, force = false, uniq = "") {
   if (!force && uniq) {
@@ -1934,6 +2035,7 @@ async function onTg(upd: Row) {
     return;
   }
   if (voice) { await doVoice(chat, voice.file_id, voice.mime_type || "audio/ogg", false, voice.file_unique_id ?? ""); return; }
+  if (m.photo?.length) { await doPhoto(chat, m.photo[m.photo.length - 1].file_id, text); return; }
   if (!text) { await send(chat, "Xarajat, savdo yoki qarzni yozing yoki 🎤 ovozli xabar yuboring"); return; }
   // «ustoz, …» — savol ustozga
   const uq = text.match(/^\s*(ustoz|buxgalter|домла|domla)[\s,:!-]*(.*)$/is);
@@ -2013,6 +2115,11 @@ async function onApi(req: Request) {
       const { data, error } = await db.from("xr_debts").insert(d).select().single();
       if (error) throw error;
       return json({ debt: data });
+    }
+    case "quick_dry": {
+      const out: Row = {};
+      for (const t of (Array.isArray(b.texts) ? b.texts : [b.text])) out[String(t)] = await quick(String(t));
+      return json(out);
     }
     case "brain_dry": {   // sinov: miya nima qaror qilishini ko'rish (hech narsa yozmaydi)
       const t0 = Date.now();
