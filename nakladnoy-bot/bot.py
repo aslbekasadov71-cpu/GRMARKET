@@ -350,6 +350,12 @@ def _start_health_server():
     logging.info("Health-check server %s portda", port)
 
 
+async def _main():
+    # Eski webhook bo'lsa o'chiramiz (aks holda polling "Conflict" beradi)
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+
 if __name__ == "__main__":
     _start_health_server()
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(_main())
