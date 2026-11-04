@@ -363,6 +363,30 @@ async def on_doc(m: Message):
         await m.answer("Rasm (jpg/png) yoki PDF yuboring.")
 
 
+def _start_health_server():
+    """Render 'web service' ochiq port talab qiladi. Bot polling'da ishlaydi,
+    shuning uchun PORT berilgan bo'lsa, oddiy 200 qaytaradigan server ishga tushiramiz."""
+    port = os.getenv("PORT")
+    if not port:
+        return
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"bot ishlayapti")
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("0.0.0.0", int(port)), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    logging.info("Health-check server %s portda", port)
+
+
 if __name__ == "__main__":
     import asyncio
+    _start_health_server()
     asyncio.run(dp.start_polling(bot))
