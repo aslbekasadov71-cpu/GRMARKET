@@ -19,7 +19,7 @@ Yana:
 ## O'rnatish
 
 1. Telegramda **@BotFather** → `/newbot` → token oling
-2. **console.anthropic.com** da ro'yxatdan o'ting, API kalit oling, balans to'ldiring
+2. **aistudio.google.com** → "Get API key" → BEPUL Gemini kaliti oling
 3. Kompyuter yoki serverda:
 
 ```bash

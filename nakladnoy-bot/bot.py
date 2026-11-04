@@ -1,8 +1,8 @@
 """
 Nakladnoy bot: rasm/PDF yuborasiz -> bot tovarlarni o'qiydi -> marja qo'shib sotish narxini chiqaradi.
-Bitta rasmda bir nechta nakladnoy/chek bo'lsa ham hammasini ajratib o'qiydi.
+Rasmni o'qish Google Gemini (bepul) orqali. Bitta rasmda bir nechta hujjat bo'lsa ham ajratadi.
 """
-import base64
+import asyncio
 import io
 import logging
 import math
@@ -12,22 +12,24 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject
 from aiogram.types import BufferedInputFile, Message
-from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from PIL import Image
+from pydantic import BaseModel
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 TG_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 DEFAULT_MARJA = float(os.getenv("MARJA", "22"))
 DEFAULT_STEP = int(os.getenv("YAXLITLASH", "100"))
 ALLOWED = {int(x) for x in os.getenv("ALLOWED_USERS", "").replace(" ", "").split(",") if x}
 
-client = AsyncAnthropic()  # ANTHROPIC_API_KEY .env dan olinadi
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 bot = Bot(TG_TOKEN)
 dp = Dispatcher()
 settings: dict[int, dict] = {}  # user_id -> {"marja": 22, "step": 100}
@@ -41,68 +43,29 @@ def allowed(m: Message) -> bool:
     return not ALLOWED or (m.from_user and m.from_user.id in ALLOWED)
 
 
-# ---------- Claude: nakladnoyni o'qish ----------
+# ---------- Gemini: nakladnoyni o'qish ----------
 
-EXTRACT_TOOL = {
-    "name": "save_invoices",
-    "description": "Rasmdagi barcha nakladnoy va cheklardan tovarlarni saqlash",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "invoices": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "supplier": {"type": "string", "description": "Yetkazuvchi / firma / sklad nomi"},
-                        "doc_number": {"type": "string"},
-                        "date": {"type": "string"},
-                        "items": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {"type": "string"},
-                                    "qty": {"type": "number", "description": "Soni/Кол-во. O'qib bo'lmasa yoki "
-                                                                             "yozilmagan bo'lsa 0 qoldiring."},
-                                    "unit": {"type": "string", "description": "dona, karobka, pachka, kg, blok, "
-                                                                             "ta ... Og'irlik (kasr son) bo'lsa kg."},
-                                    "unit_cost": {
-                                        "type": "number",
-                                        "description": "1 birlik (dona yoki kg) narxi — Narxi/Цена ustuni. "
-                                                       "Chegirma bo'lsa Цена со скидкой ni oling.",
-                                    },
-                                    "line_sum": {
-                                        "type": "number",
-                                        "description": "Qator summasi: Summasi/Сумма ustuni yoki '=' dan keyingi "
-                                                       "natija. Yozilmagan bo'lsa 0.",
-                                    },
-                                    "pieces_per_unit": {
-                                        "type": "number",
-                                        "description": "Faqat birlik karobka/pachka bo'lib, ichidagi dona soni "
-                                                       "aniq yozilgan bo'lsa (masalan 'KAROBKA 12 DONA'). Aks holda 0.",
-                                    },
-                                },
-                                "required": ["name", "unit_cost"],
-                            },
-                        },
-                        "printed_total": {
-                            "type": "number",
-                            "description": "Hujjatdagi jami summa, HUJJAT darajasidagi chegirmagacha (Итого / К оплате)",
-                        },
-                        "doc_discount_percent": {
-                            "type": "number",
-                            "description": "Butun hujjatga umumiy chegirma bo'lsa foizi (masalan 'Сумма скидки' / 'Итого' * 100). "
-                                           "Qator ichidagi chegirma bu yerga KIRMAYDI. Yo'q bo'lsa 0.",
-                        },
-                    },
-                    "required": ["supplier", "items"],
-                },
-            }
-        },
-        "required": ["invoices"],
-    },
-}
+class ItemOut(BaseModel):
+    name: str = ""
+    qty: float = 0           # Soni/Кол-во. O'qilmasa 0.
+    unit: str = ""           # dona / kg / ta / karobka / pachka
+    unit_cost: float = 0     # 1 birlik narxi (Narxi/Цена)
+    line_sum: float = 0      # Qator summasi (Summasi/Сумма yoki "=" natija). Yo'q bo'lsa 0.
+    pieces_per_unit: float = 0  # Karobka ichidagi dona soni aniq yozilgan bo'lsa
+
+
+class InvoiceOut(BaseModel):
+    supplier: str = ""
+    doc_number: str = ""
+    date: str = ""
+    doc_discount_percent: float = 0  # Butun hujjatga umumiy chegirma foizi
+    printed_total: float = 0         # Itogo / Jami / umumiy summa
+    items: list[ItemOut] = []
+
+
+class ResultOut(BaseModel):
+    invoices: list[InvoiceOut] = []
+
 
 PROMPT = """Bu rasmda O'zbekistondagi do'konga kelgan tovar hujjati bor. U uch xil bo'lishi mumkin:
   1) BOSMA chek yoki nakladnoy (printerda chiqarilgan),
@@ -145,22 +108,23 @@ def prepare_image(raw: bytes) -> bytes:
 
 async def extract(raw: bytes, is_pdf: bool) -> list[dict]:
     if is_pdf:
-        block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
-                                                 "data": base64.b64encode(raw).decode()}}
+        part = types.Part.from_bytes(data=raw, mime_type="application/pdf")
     else:
-        block = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
-                                              "data": base64.b64encode(prepare_image(raw)).decode()}}
-    resp = await client.messages.create(
+        part = types.Part.from_bytes(data=prepare_image(raw), mime_type="image/jpeg")
+    resp = await client.aio.models.generate_content(
         model=MODEL,
-        max_tokens=16000,
-        tools=[EXTRACT_TOOL],
-        tool_choice={"type": "tool", "name": "save_invoices"},
-        messages=[{"role": "user", "content": [block, {"type": "text", "text": PROMPT}]}],
+        contents=[part, PROMPT],
+        config=types.GenerateContentConfig(
+            temperature=0,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+            response_schema=ResultOut,
+        ),
     )
-    for b in resp.content:
-        if b.type == "tool_use":
-            return b.input.get("invoices", [])
-    return []
+    result: ResultOut = resp.parsed
+    if not result:
+        return []
+    return [inv.model_dump() for inv in result.invoices]
 
 
 # ---------- Narx hisoblash ----------
@@ -209,7 +173,7 @@ def price_invoices(invoices: list[dict], marja: float, step: int) -> list[dict]:
 def build_text(invoices: list[dict], marja: float, step: int) -> list[str]:
     parts = []
     for n, inv in enumerate(invoices, 1):
-        head = f"📄 {n}. {inv.get('supplier', '—')}"
+        head = f"📄 {n}. {inv.get('supplier') or '—'}"
         if inv.get("doc_number"):
             head += f"  №{inv['doc_number']}"
         if inv.get("date"):
@@ -387,6 +351,5 @@ def _start_health_server():
 
 
 if __name__ == "__main__":
-    import asyncio
     _start_health_server()
     asyncio.run(dp.start_polling(bot))

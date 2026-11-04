@@ -1,15 +1,15 @@
 services:
-  - type: worker
+  - type: web
     name: nakladnoy-bot
     runtime: python
-    plan: starter
+    plan: free
     rootDir: nakladnoy-bot
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
       - key: MARJA
         value: "22"
@@ -17,5 +17,5 @@ services:
         value: "100"
       - key: ALLOWED_USERS
         sync: false
-      - key: CLAUDE_MODEL
-        value: claude-sonnet-5-5
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
