@@ -1,0 +1,21 @@
+services:
+  - type: worker
+    name: nakladnoy-bot
+    runtime: python
+    plan: starter
+    rootDir: nakladnoy-bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MARJA
+        value: "22"
+      - key: YAXLITLASH
+        value: "100"
+      - key: ALLOWED_USERS
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-5-5

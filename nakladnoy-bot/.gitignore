@@ -1,0 +1,21 @@
+# Maxfiy — hech qachon GitHub'ga yuklanmasin
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Natijalar
+*.xlsx
+narxlar_*.xlsx
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
