@@ -24,7 +24,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 TG_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 DEFAULT_MARJA = float(os.getenv("MARJA", "22"))
 DEFAULT_STEP = int(os.getenv("YAXLITLASH", "100"))
 ALLOWED = {int(x) for x in os.getenv("ALLOWED_USERS", "").replace(" ", "").split(",") if x}
