@@ -24,7 +24,12 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 TG_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+# Bir nechta model vergul bilan berilsa, navbati bilan sinaydi (birinchisi band bo'lsa keyingisi)
+MODELS = [m.strip() for m in os.getenv("GEMINI_MODEL", "gemini-3.8-flash").split(",") if m.strip()]
+
+# Vaqtinchalik (qayta urinsa o'tadigan) xatolar belgisi
+TRANSIENT = ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "500", "INTERNAL",
+             "overloaded", "high demand", "deadline", "timeout")
 DEFAULT_MARJA = float(os.getenv("MARJA", "22"))
 DEFAULT_STEP = int(os.getenv("YAXLITLASH", "100"))
 ALLOWED = {int(x) for x in os.getenv("ALLOWED_USERS", "").replace(" ", "").split(",") if x}
@@ -106,25 +111,40 @@ def prepare_image(raw: bytes) -> bytes:
     return out.getvalue()
 
 
+def _is_transient(e: Exception) -> bool:
+    msg = str(e)
+    return any(t in msg for t in TRANSIENT)
+
+
 async def extract(raw: bytes, is_pdf: bool) -> list[dict]:
     if is_pdf:
         part = types.Part.from_bytes(data=raw, mime_type="application/pdf")
     else:
         part = types.Part.from_bytes(data=prepare_image(raw), mime_type="image/jpeg")
-    resp = await client.aio.models.generate_content(
-        model=MODEL,
-        contents=[part, PROMPT],
-        config=types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=8192,
-            response_mime_type="application/json",
-            response_schema=ResultOut,
-        ),
+    cfg_gen = types.GenerateContentConfig(
+        temperature=0,
+        max_output_tokens=8192,
+        response_mime_type="application/json",
+        response_schema=ResultOut,
     )
-    result: ResultOut = resp.parsed
-    if not result:
-        return []
-    return [inv.model_dump() for inv in result.invoices]
+    last_err: Exception | None = None
+    for model in MODELS:
+        for attempt in range(4):  # 1 urinish + 3 qayta urinish
+            try:
+                resp = await client.aio.models.generate_content(
+                    model=model, contents=[part, PROMPT], config=cfg_gen
+                )
+                result: ResultOut = resp.parsed
+                return [inv.model_dump() for inv in result.invoices] if result else []
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                if _is_transient(e) and attempt < 3:
+                    wait_s = 2 * (2 ** attempt)  # 2, 4, 8 soniya
+                    logging.warning("Gemini band (%s), %ss kutib qayta urinaman", model, wait_s)
+                    await asyncio.sleep(wait_s)
+                    continue
+                break  # bu modelda bo'lmadi -> keyingi modelga o'tamiz
+    raise last_err if last_err else RuntimeError("Gemini javob bermadi")
 
 
 # ---------- Narx hisoblash ----------
@@ -305,7 +325,10 @@ async def process(m: Message, file_id: str, is_pdf: bool):
         await m.answer_document(BufferedInputFile(xls, name))
     except Exception as e:
         logging.exception("process error")
-        await wait.edit_text(f"Xatolik: {e}")
+        if _is_transient(e):
+            await wait.edit_text("⏳ Gemini hozir band (ko'p so'rov). 10–20 soniyadan keyin rasmni qayta yuboring.")
+        else:
+            await wait.edit_text(f"Xatolik: {e}")
 
 
 @dp.message(F.photo)
